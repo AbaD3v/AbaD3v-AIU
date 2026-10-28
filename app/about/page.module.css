@@ -44,3 +44,6 @@
 .team article { min-width: 0; }
 .section { scroll-margin-top: 24px; }
 @media (min-width: 641px) and (max-width: 850px) { .team { grid-template-columns: 1fr; } }
+
+.team a { overflow-wrap: anywhere; }
+@media (max-width: 380px) { .hero h1 { font-size: 29px; } .project { padding: 16px; } .team article { padding: 20px; } }

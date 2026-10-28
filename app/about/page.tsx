@@ -6,7 +6,7 @@ import s from "./page.module.css";
 
 export const metadata: Metadata = {
   title: "О себе | CodeProof",
-  description: "О проекте CodeProof и нашей команде: Ерасыл, Абзал и Ерсултан. Готовимся к защите кода с помощью ИИ.",
+  description: "О проекте CodeProof и нашей команде: Ерасыл, Абзал и Ерсұлтан. Готовимся к защите кода с помощью ИИ.",
 };
 
 export default function AboutPage() {
@@ -26,13 +26,13 @@ export default function AboutPage() {
           <div>
             <span className={shared.eyebrow}>О СЕБЕ · КОМАНДА CODEPROOF</span>
             <h1 id="about-heading">Мы создаём CodeProof.<br /><span>Чтобы код было<br />легче объяснить.</span></h1>
-            <p className={s.lead}>Мы Ерасыл, Абзал и Ерсултан. Вместе работаем над CodeProof, приложением для подготовки студентов к защите программного кода с помощью искусственного интеллекта.</p>
+            <p className={s.lead}>Мы Ерасыл, Абзал и Ерсұлтан. Вместе работаем над CodeProof, приложением для подготовки студентов к защите программного кода с помощью искусственного интеллекта.</p>
             <div className={s.actions}><a className={shared.primary} href="#team">Наша команда <span aria-hidden="true">↗</span></a><a className={shared.secondary} href="#project">О проекте <span aria-hidden="true">↓</span></a></div>
           </div>
           <aside className={s.identity} aria-label="Наша команда">
             <div className={s.cardTop}><span>ТРИ УЧАСТНИКА · ОДНА ИДЕЯ</span><Icon name="code" size={24} /></div>
             <div className={s.monogram} aria-hidden="true">3<span>.</span></div>
-            <strong>Ерасыл · Абзал · Ерсултан</strong><span className={s.handle}>Команда CodeProof</span>
+            <strong>Ерасыл · Абзал · Ерсұлтан</strong><span className={s.handle}>Команда CodeProof</span>
             <div className={s.cardBottom}><span>ПРОЕКТ</span><b>CodeProof</b></div>
           </aside>
         </section>
@@ -45,7 +45,7 @@ export default function AboutPage() {
           <div className={s.team}>
             <article><span className={s.avatar} aria-hidden="true">Е</span><span className={s.badge}>ФРОНТЕНД</span><h3>Ерасыл</h3><span className={s.fullName}>Куанышбек Ерасыл</span><p>Отвечает за дизайн и интерфейс: страницы на React и Next.js, формы, экраны тренировок и удобство на телефонах.</p><a href="https://github.com/Smylorx">@Smylorx <span aria-hidden="true">↗</span></a></article>
             <article><span className={s.avatar} aria-hidden="true">А</span><span className={s.badge}>БЭКЕНД</span><h3>Абзал</h3><span className={s.fullName}>Маметжан Абзал</span><p>Отвечает за серверную часть: API, базу данных, авторизацию, интеграцию с ИИ и сохранение результатов тренировок.</p><a href="https://github.com/AbaD3v">@AbaD3v <span aria-hidden="true">↗</span></a></article>
-            <article><span className={s.avatar} aria-hidden="true">Е</span><span className={s.badge}>КОМАНДА CODEPROOF</span><h3>Ерсултан</h3><p>Участник команды CodeProof. Вместе с Ерасылом и Абзалом работает над проектом.</p></article>
+            <article><span className={s.avatar} aria-hidden="true">Е</span><span className={s.badge}>UI/UX-ДИЗАЙН</span><h3>Ерсұлтан</h3><span className={s.fullName}>Кәрғұл Ерсұлтан</span><p>Проектирует сценарии, прототипы и макеты экранов. Отвечает за визуальный стиль, адаптивный дизайн и удобство интерфейса.</p><a href="https://github.com/ersultankargul07-alt">@ersultankargul07-alt <span aria-hidden="true">↗</span></a></article>
           </div>
         </section>
         <section className={s.stack} aria-labelledby="stack-heading"><h2 id="stack-heading">Стек проекта по README</h2><ul>{["Next.js", "React", "JavaScript", "CSS Modules", "PostgreSQL", "Prisma", "API языковой модели"].map(technology => <li key={technology}>{technology}</li>)}</ul></section>

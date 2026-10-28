@@ -1,0 +1,455 @@
+.page {
+  width: min(100%, 1256px);
+  margin: 0 auto;
+  padding: 52px 28px 70px;
+  color: #203c31;
+}
+
+.topline {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 30px;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 13px;
+  color: #718768;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 1.8px;
+}
+
+.topline h1 {
+  margin: 0;
+  font-size: 39px;
+  font-weight: 650;
+  letter-spacing: -1.3px;
+}
+
+.subtitle {
+  margin: 10px 0 0;
+  color: #71816b;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #dbe6d0;
+  border-radius: 7px;
+  background: #fff;
+  color: #5c7848;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.18s ease;
+}
+
+.backLink:hover {
+  background: #f0f5e9;
+}
+
+.backLink svg {
+  transform: rotate(180deg);
+}
+
+.hero {
+  position: relative;
+  display: flex;
+  min-height: 164px;
+  align-items: center;
+  gap: 23px;
+  overflow: hidden;
+  padding: 30px 34px;
+  border: 1px solid #2b513d;
+  border-radius: 13px;
+  background: linear-gradient(115deg, #16372d 0%, #244a37 100%);
+  color: #f1f7eb;
+}
+
+.hero::after {
+  position: absolute;
+  right: -66px;
+  bottom: -150px;
+  width: 330px;
+  height: 330px;
+  border: 1px solid rgb(204 234 173 / 11%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 35px rgb(204 234 173 / 3%),
+    0 0 0 70px rgb(204 234 173 / 3%);
+  content: "";
+  pointer-events: none;
+}
+
+.largeAvatar {
+  z-index: 1;
+  display: grid;
+  width: 76px;
+  height: 76px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 3px solid rgb(231 244 216 / 35%);
+  border-radius: 50%;
+  background: #d0e8b7;
+  color: #264636;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.heroInfo {
+  z-index: 1;
+  min-width: 0;
+}
+
+.demoBadge {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgb(209 232 183 / 24%);
+  border-radius: 4px;
+  color: #cde5ad;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 1.2px;
+}
+
+.heroInfo h2 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.heroInfo p {
+  margin: 7px 0 0;
+  color: #b7cbb5;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.planBadge {
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 10px 13px;
+  border: 1px solid rgb(212 233 188 / 23%);
+  border-radius: 7px;
+  background: rgb(241 249 229 / 7%);
+  color: #d4e6bd;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.card,
+.progressCard {
+  min-width: 0;
+  border: 1px solid #dce6d3;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.card {
+  padding: 25px 27px;
+}
+
+.cardHeading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #edf1e9;
+}
+
+.cardIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: #edf4e5;
+  color: #6f8c52;
+}
+
+.cardHeading h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.cardHeading p {
+  margin: 5px 0 0;
+  color: #7c8b74;
+  font-size: 11px;
+}
+
+.details {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.details > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 0;
+  border-bottom: 1px solid #f0f3ec;
+}
+
+.details > div:last-child {
+  padding-bottom: 1px;
+  border-bottom: 0;
+}
+
+.details dt,
+.learningItem > span {
+  color: #7c8b74;
+  font-size: 11px;
+}
+
+.details dd {
+  margin: 0;
+  color: #2d4637;
+  font-size: 12px;
+  font-weight: 550;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.learningItem {
+  display: grid;
+  gap: 10px;
+  padding: 17px 0 15px;
+  border-bottom: 1px solid #f0f3ec;
+}
+
+.learningItem:last-child {
+  padding-bottom: 1px;
+  border-bottom: 0;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tag {
+  padding: 6px 9px;
+  border: 1px solid #e2ead9;
+  border-radius: 5px;
+  background: #f6f9f1;
+  color: #5e7848;
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.learningItem strong {
+  color: #334c39;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.65;
+}
+
+.progressCard {
+  margin-top: 22px;
+  padding: 25px 27px;
+}
+
+.progressHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 21px;
+  border-bottom: 1px solid #edf1e9;
+}
+
+.progressHeading .eyebrow {
+  margin-bottom: 8px;
+  font-size: 9px;
+}
+
+.progressHeading h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.progressDemo {
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: #f4f7ef;
+  color: #829173;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 21px;
+}
+
+.stat {
+  display: grid;
+  gap: 6px;
+  padding: 2px 22px;
+  border-right: 1px solid #edf1e9;
+}
+
+.stat:first-child {
+  padding-left: 0;
+}
+
+.stat:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.stat strong {
+  color: #527540;
+  font-size: 27px;
+  font-weight: 650;
+  letter-spacing: -0.7px;
+}
+
+.stat span {
+  color: #75836d;
+  font-size: 11px;
+}
+
+.disclaimer {
+  margin: 18px 0 0;
+  color: #7b8972;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 31px 20px 48px;
+  }
+
+  .topline {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 17px;
+    margin-bottom: 22px;
+  }
+
+  .topline h1 {
+    font-size: 34px;
+  }
+
+  .hero {
+    min-height: auto;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 24px 20px;
+  }
+
+  .largeAvatar {
+    width: 62px;
+    height: 62px;
+    font-size: 16px;
+  }
+
+  .heroInfo h2 {
+    font-size: 19px;
+  }
+
+  .planBadge {
+    margin-left: 78px;
+  }
+
+  .card,
+  .progressCard {
+    padding: 21px;
+  }
+
+  .progressHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .stat {
+    padding: 2px 12px;
+  }
+
+  .stat strong {
+    font-size: 23px;
+  }
+}
+
+@media (max-width: 420px) {
+  .page {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .details > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .details dd {
+    text-align: left;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .stat,
+  .stat:first-child,
+  .stat:last-child {
+    padding: 0 0 12px;
+    border-right: 0;
+    border-bottom: 1px solid #edf1e9;
+  }
+
+  .stat:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .planBadge {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backLink {
+    transition: none;
+  }
+}

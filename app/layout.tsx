@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import AppSidebar from "./components/app-sidebar";
+import shell from "./components/app-shell.module.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +16,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        <div className={shell.layout}>
+          <AppSidebar />
+          <div className={shell.content}>{children}</div>
+        </div>
+      </body>
     </html>
   );
 }
