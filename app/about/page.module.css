@@ -1,0 +1,46 @@
+.breadcrumb { display: flex; gap: 12px; font-size: 12px; color: #5f7457; margin-bottom: 44px; }
+.breadcrumb a:hover, .team a:hover { text-decoration: underline; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 72px; align-items: center; padding-bottom: 68px; }
+.hero h1 { font-size: clamp(36px, 4.4vw, 58px); font-weight: 600; line-height: 1.12; letter-spacing: -2px; margin: 0 0 25px; }
+.hero h1 span { color: #63874b; }
+.lead { max-width: 580px; font-size: 16px; line-height: 1.85; color: #5c7053; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.identity { background: #203c31; color: #eef6e6; border-radius: 14px; padding: 30px; transform: rotate(2deg); }
+.cardTop { display: flex; align-items: center; justify-content: space-between; color: #c4df9e; font-size: 10px; letter-spacing: 1.5px; }
+.monogram { font-size: 125px; font-weight: 650; line-height: 1.5; letter-spacing: -9px; }
+.monogram span { color: #c4ea8c; }
+.identity strong { display: block; font-size: 23px; font-weight: 550; }
+.handle { display: block; font-size: 13px; color: #c0d1b6; margin-top: 10px; }
+.cardBottom { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #496250; }
+.cardBottom span { font-size: 9px; letter-spacing: 1.5px; color: #c0d1b6; }
+.cardBottom b { font-size: 13px; font-weight: 500; }
+.section { padding: 48px 0; border-top: 1px solid #dfe7d7; }
+.sectionHeading h2, .project h2 { font-weight: 550; font-size: 32px; letter-spacing: -1px; margin: 0 0 14px; }
+.sectionHeading > p { font-size: 14px; line-height: 1.8; color: #5f7457; margin-bottom: 28px; }
+.team h3 { font-size: 20px; font-weight: 550; margin: 0 0 12px; }
+.team p { color: #5c7053; font-size: 14px; line-height: 1.8; margin: 0; }
+.project { scroll-margin-top: 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 65px; padding: 38px; margin: 16px 0 48px; border: 1px solid #dce6d3; border-radius: 12px; background: #eaf1e0; }
+.project h2 { font-size: 38px; line-height: 1.15; }
+.project p { color: #506748; font-size: 14px; line-height: 1.85; margin: 18px 0 25px; }
+.scenario { background: #f6f8f3; border-radius: 9px; padding: 26px; }
+.scenario ol { padding-left: 22px; margin: 24px 0; }
+.scenario li { padding-left: 7px; margin-top: 24px; font-size: 14px; }
+.scenario li::marker { color: #63874b; }
+.scenario p { margin: 7px 0 0; font-size: 13px; }
+.scenario small { display: block; color: #5f7457; line-height: 1.7; }
+.team { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 28px; }
+.team article { border: 1px solid #dce6d3; background: #fff; border-radius: 10px; padding: 28px; }
+.badge { display: block; font-size: 10px; letter-spacing: 1.5px; color: #5a7945; margin-bottom: 22px; }
+.team a { display: inline-flex; gap: 18px; align-items: center; min-height: 44px; margin-top: 16px; font-size: 14px; color: #28573e; font-weight: 600; }
+.stack { border-top: 1px solid #dfe7d7; padding: 35px 0 10px; }
+.stack h2 { font-size: 16px; font-weight: 550; }
+.stack ul { display: flex; flex-wrap: wrap; gap: 10px; padding: 0; list-style: none; }
+.stack li { padding: 9px 13px; border: 1px solid #dce6d3; border-radius: 6px; font-size: 12px; color: #506748; }
+@media (max-width: 850px) { .hero { gap: 35px; } .identity { transform: none; padding: 24px; } .project { gap: 28px; padding: 28px; } .grid { gap: 20px; } }
+@media (max-width: 640px) { .breadcrumb { margin-bottom: 30px; } .hero, .grid, .project, .team { grid-template-columns: 1fr; } .hero { gap: 32px; padding-bottom: 40px; } .hero h1 { letter-spacing: -1.3px; } .identity { max-width: 420px; width: 100%; } .monogram { font-size: 90px; } .section { padding: 35px 0; } .sectionHeading h2 { font-size: 28px; } .grid { gap: 12px; } .role { padding-bottom: 18px; } .project { padding: 22px; margin-bottom: 35px; } .project h2 { font-size: 32px; } .scenario { padding: 20px; } .team article { padding: 24px; } }
+
+.avatar { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: #eaf1e0; color: #28573e; font-size: 23px; margin-bottom: 25px; }
+.fullName { display: block; color: #5c7053; font-size: 12px; margin: -4px 0 18px; }
+.team article { min-width: 0; }
+.section { scroll-margin-top: 24px; }
+@media (min-width: 641px) and (max-width: 850px) { .team { grid-template-columns: 1fr; } }
