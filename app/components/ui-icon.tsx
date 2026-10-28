@@ -12,7 +12,8 @@ export type IconName =
   | "repeat"
   | "spark"
   | "chevron"
-  | "close";
+  | "close"
+  | "user";
 const paths: Record<IconName, string> = {
   home: "m3 10 9-7 9 7v10H3V10m6 10v-7h6v7",
   book: "M12 6c-3-2-6-2-9-1v15c3-1 6-1 9 1m0-15c3-2 6-2 9-1v15c-3-1-6-1-9 1V6",
@@ -27,6 +28,7 @@ const paths: Record<IconName, string> = {
   spark: "m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7",
   chevron: "m9 5 7 7-7 7",
   close: "m6 6 12 12M6 18 18 6",
+  user: "M20 21a8 8 0 0 0-16 0m12-14a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
 };
 export function Icon({
   name,
