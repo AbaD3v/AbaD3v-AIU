@@ -8,6 +8,7 @@ import s from "./app-sidebar.module.css";
 export default function AppSidebar() {
   const pathname = usePathname();
   const onHome = pathname === "/";
+  const onAbout = pathname === "/about";
   const onProfile = pathname === "/profile";
 
   return (
@@ -33,6 +34,17 @@ export default function AppSidebar() {
         >
           <Icon name="home" size={20} />
         </Link>
+        <a
+          href="/about"
+          target={onAbout ? undefined : "_blank"}
+          rel="noopener noreferrer"
+          className={`${s.navLink} ${onAbout ? s.active : ""}`}
+          aria-label={onAbout ? "О себе" : "О себе (в новой вкладке)"}
+          aria-current={onAbout ? "page" : undefined}
+          data-tooltip="О себе"
+        >
+          <Icon name="book" size={20} />
+        </a>
       </nav>
 
       <div className={s.bottom}>

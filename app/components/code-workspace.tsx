@@ -626,7 +626,9 @@ export default function CodeWorkspace() {
           <span>
             CodeProof<span>.</span> <small>Учись объяснять свой код.</small>
           </span>
-          <span>Твой темп. Твоё понимание.</span>
+          <a href="/about" target="_blank" rel="noopener noreferrer">
+            О себе ↗<span className={s.srOnly}> (в новой вкладке)</span>
+          </a>
         </footer>
       </main>
     </div>
