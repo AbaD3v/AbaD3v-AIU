@@ -53,6 +53,10 @@ function WorkspaceView({ account }: { account: Account }) {
   const language = languages.find((item) => item.name === lesson.language)!;
   const isSample = sampleKind(lesson.code, lesson.language);
   const chatFull = lesson.messages.length >= 200;
+  const showChatWelcome =
+    !lesson.question &&
+    lesson.messages.length === 1 &&
+    lesson.messages[0].role === "assistant";
 
   useEffect(() => {
     const serialized = JSON.stringify(workspace);
@@ -455,17 +459,14 @@ function WorkspaceView({ account }: { account: Account }) {
           </div>
         </section>
         <section
-          className={`${s.chatPanel} ${mobilePanel !== "chat" ? s.mobileHidden : ""}`}
+          className={`${s.chatPanel} ${showChatWelcome ? s.chatWelcome : ""} ${mobilePanel !== "chat" ? s.mobileHidden : ""}`}
           aria-label="Диалог с помощником"
         >
           <div className={s.chatHeader}>
             <span className={s.assistantIcon}>
-              <Icon name="spark" size={19} />
+              <Icon name="code" size={17} />
             </span>
-            <div>
-              <h2>Разбираемся вместе</h2>
-              <p>CodeProof · учебный помощник</p>
-            </div>
+            <h2>CodeProof</h2>
             <span className={s.chatStatus}>Демо</span>
           </div>
           <div
@@ -476,10 +477,16 @@ function WorkspaceView({ account }: { account: Account }) {
             aria-relevant="additions text"
             aria-label="История диалога"
           >
-            <div className={s.chatDate}>
-              ТВОЁ ЗАНЯТИЕ · {lesson.language.toUpperCase()}
-            </div>
-            {lesson.messages.map((item) => (
+            {showChatWelcome && (
+              <div className={s.chatIntro}>
+                <span className={s.chatMark}>
+                  <Icon name="code" size={25} />
+                </span>
+                <h3>Что разберём сегодня?</h3>
+                <p>Задай вопрос о коде или потренируйся объяснять его на защите.</p>
+              </div>
+            )}
+            {(showChatWelcome ? [] : lesson.messages).map((item) => (
               <article
                 className={`${s.message} ${item.role === "user" ? s.userMessage : s.assistantMessage}`}
                 key={item.id}
@@ -489,7 +496,7 @@ function WorkspaceView({ account }: { account: Account }) {
                     "Ты"
                   ) : (
                     <>
-                      <Icon name="spark" size={13} /> CodeProof
+                      <Icon name="code" size={15} /> CodeProof
                     </>
                   )}
                   {item.kind === "answer" && <small>Ответ на вопрос</small>}
@@ -603,33 +610,21 @@ function WorkspaceView({ account }: { account: Account }) {
                 disabled={chatFull}
                 onClick={() => send("Объясни этот код", "explain")}
               >
-                Объясни код
+                <Icon name="code" size={14} /> Объясни код
               </button>
               <button
                 disabled={chatFull}
                 onClick={() => send("Задай мне вопрос", "question")}
               >
-                Проверь меня
+                <Icon name="book" size={14} /> Проверь меня
               </button>
               <button
                 disabled={chatFull}
                 onClick={() => send("Предложи изменение кода", "change")}
               >
-                Что если…
+                <Icon name="branch" size={14} /> Предложи правку
               </button>
             </div>
-            {selected && (
-              <div className={s.selectedContext}>
-                <Icon name="code" size={13} />В контексте строки{" "}
-                {selected.start}–{selected.end}
-                <button
-                  aria-label="Убрать выделение из контекста"
-                  onClick={() => setSelected(null)}
-                >
-                  <Icon name="close" size={13} />
-                </button>
-              </div>
-            )}
             <form className={s.composer} onSubmit={submitChat}>
               <label htmlFor="chat-input" className={s.srOnly}>
                 Сообщение помощнику
@@ -638,7 +633,7 @@ function WorkspaceView({ account }: { account: Account }) {
                 id="chat-input"
                 ref={chatInput}
                 rows={2}
-                placeholder="Спроси о коде или попроси подсказку…"
+                placeholder="Спроси о коде…"
                 value={lesson.draft}
                 onChange={(event) =>
                   updateLesson({ draft: event.target.value })
@@ -655,14 +650,30 @@ function WorkspaceView({ account }: { account: Account }) {
                   }
                 }}
               />
-              <button
-                type="submit"
-                className={s.sendButton}
-                aria-label="Отправить сообщение"
-                disabled={!lesson.draft.trim() || chatFull}
-              >
-                <Icon name="arrow" size={19} />
-              </button>
+              <div className={s.composerToolbar}>
+                <span className={s.languageContext}>
+                  <Icon name="code" size={14} /> {lesson.language}
+                </span>
+                {selected && (
+                  <button
+                    type="button"
+                    className={s.selectedContext}
+                    aria-label="Убрать выделение из контекста"
+                    onClick={() => setSelected(null)}
+                  >
+                    Строки {selected.start}–{selected.end}
+                    <Icon name="close" size={13} />
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className={s.sendButton}
+                  aria-label="Отправить сообщение"
+                  disabled={!lesson.draft.trim() || chatFull}
+                >
+                  <Icon name="arrow" size={18} />
+                </button>
+              </div>
             </form>
             <div className={s.composerFootnote}>
               <span>
