@@ -1,693 +1,693 @@
 "use client";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Icon } from "./ui-icon";
+
+import Link from "next/link";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  examples,
+  languages,
+  sampleKind,
+  type Language,
+} from "../lib/languages";
+import {
+  checkQuestion,
+  createLesson,
+  inferIntent,
+  loadWorkspace,
+  makeQuestion,
+  message,
+  reply,
+  workspaceKey,
+  type ChatIntent,
+  type Lesson,
+  type LineRange,
+  type Message,
+} from "../lib/workspace";
+import AuthScreen from "./auth-screen";
+import CodeEditor from "./code-editor";
 import LearnerOnboarding from "./learner-onboarding";
-import {
-  parseProfile,
-  profileStorageKey,
-  type LearnerProfile,
-} from "../lib/onboarding";
-import {
-  createTraining,
-  submitAnswer,
-  type Training,
-  type TrainingQuestion,
-  type AnswerResult,
-  type Feedback,
-  type CodeRange,
-} from "../lib/training-api";
+import QuestionCard from "./question-card";
+import { useSession, type Account } from "./session-provider";
+import { Icon } from "./ui-icon";
+import s from "./learning.module.css";
 
-function subscribe(fn: () => void) {
-  window.addEventListener("storage", fn);
-  return () => window.removeEventListener("storage", fn);
-}
-function readProfile() {
-  try {
-    return localStorage.getItem(profileStorageKey);
-  } catch {
-    return null;
-  }
-}
-const noSubscribe = () => () => {};
-type Turn = { question: TrainingQuestion; answer: string; feedback: Feedback };
+function WorkspaceView({ account }: { account: Account }) {
+  const [initial] = useState(() =>
+    loadWorkspace(account.id, account.languages[0] ?? "JavaScript"),
+  );
+  const [workspace, setWorkspace] = useState(initial.workspace);
+  const [saved, setSaved] = useState({
+    snapshot: initial.workspace,
+    error: "",
+  });
+  const [notice, setNotice] = useState(initial.notice);
+  const [selected, setSelected] = useState<LineRange | null>(null);
+  const [questionOpen, setQuestionOpen] = useState(true);
+  const [mobilePanel, setMobilePanel] = useState<"code" | "chat">("code");
+  const [copied, setCopied] = useState(false);
+  const transcript = useRef<HTMLDivElement>(null);
+  const chatInput = useRef<HTMLTextAreaElement>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lesson = workspace.lessons.find(
+    (item) => item.id === workspace.activeId,
+  )!;
+  const language = languages.find((item) => item.name === lesson.language)!;
+  const isSample = sampleKind(lesson.code, lesson.language);
+  const chatFull = lesson.messages.length >= 200;
 
-export default function CodeWorkspace() {
-  const hydrated = useSyncExternalStore(
-    noSubscribe,
-    () => true,
-    () => false,
-  );
-  const stored = useSyncExternalStore(subscribe, readProfile, () => null);
-  const [sessionProfile, setSessionProfile] = useState<LearnerProfile | null>(
-    null,
-  );
-  const profile = sessionProfile ?? parseProfile(stored);
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [storageNotice, setStorageNotice] = useState("");
-  const [code, setCode] = useState("");
-  const [training, setTraining] = useState<Training | null>(null);
-  const [current, setCurrent] = useState<TrainingQuestion | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [result, setResult] = useState<AnswerResult | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [finished, setFinished] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [selectedRange, setSelectedRange] = useState<CodeRange | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  const createId = useRef<string | null>(null);
-  const answerId = useRef<string | null>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  function focus() {
-    requestAnimationFrame(() =>
-      heading.current?.focus({ preventScroll: true }),
+  useEffect(() => {
+    const serialized = JSON.stringify(workspace);
+    function persist() {
+      try {
+        localStorage.setItem(workspaceKey(account.id), serialized);
+        return "";
+      } catch {
+        return "Не удалось сохранить занятие. Скопируй код перед закрытием страницы.";
+      }
+    }
+    const timer = setTimeout(
+      () => setSaved({ snapshot: workspace, error: persist() }),
+      180,
     );
+    window.addEventListener("pagehide", persist);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pagehide", persist);
+      persist();
+    };
+  }, [workspace, account.id]);
+
+  useEffect(() => {
+    const element = transcript.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [lesson.id, lesson.messages.length]);
+
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
+
+  function updateLesson(change: Partial<Lesson>) {
+    setWorkspace((previous) => ({
+      ...previous,
+      lessons: previous.lessons.map((item) => {
+        if (item.id !== previous.activeId) return item;
+        return { ...item, ...change };
+      }),
+    }));
   }
-  function saveProfile(p: LearnerProfile) {
-    setSessionProfile(p);
-    setEditingProfile(false);
-    createId.current = null;
-    setError("");
-    try {
-      localStorage.setItem(profileStorageKey, JSON.stringify(p));
-      setStorageNotice("");
-    } catch {
-      setStorageNotice(
-        "Браузер не разрешает сохранение профиля. После перезагрузки знакомство нужно будет пройти снова.",
-      );
-    }
-    focus();
+
+  function updateCode(code: string) {
+    updateLesson({
+      code,
+      title:
+        lesson.title === "Новое занятие" && code.trim()
+          ? `Код на ${lesson.language}`
+          : lesson.title,
+    });
+    setSelected(null);
   }
-  async function prepare(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (busy || controller.current || !profile) return;
-    if (!code.trim() || code.length > 10000) {
-      setError("Вставь непустой код длиной до 10 000 символов.");
-      return;
-    }
-    const abort = new AbortController();
-    controller.current = abort;
-    setBusy(true);
-    setError("");
-    createId.current ??= crypto.randomUUID();
-    try {
-      const data = await createTraining(
-        code,
-        profile,
-        createId.current,
-        abort.signal,
-      );
-      setTraining(data);
-      setCurrent(data.firstQuestion);
-      setTurns([]);
-      setResult(null);
-      setAnswer("");
-      setFinished(false);
-      setSelectedRange(null);
-      focus();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Не удалось подготовить тренировку.",
-      );
-    } finally {
-      controller.current = null;
-      setBusy(false);
-    }
+
+  function chooseLanguage(next: Language) {
+    updateLesson({
+      language: next,
+      code: isSample ? examples[next] : lesson.code,
+      lastEdit: null,
+    });
+    setSelected(null);
   }
-  async function checkAnswer(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+
+  function loadExample() {
     if (
-      !training ||
-      !current ||
-      busy ||
-      controller.current ||
-      result ||
-      !answer.trim()
-    )
-      return;
-    const abort = new AbortController();
-    controller.current = abort;
-    setBusy(true);
-    setError("");
-    answerId.current ??= crypto.randomUUID();
-    try {
-      const data = await submitAnswer(
-        training.id,
-        current,
-        answer,
-        code,
-        answerId.current,
-        abort.signal,
-      );
-      setResult(data);
-      setTurns((previous) => [
-        ...previous,
-        { question: current, answer, feedback: data.feedback },
-      ]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось проверить ответ.");
-    } finally {
-      controller.current = null;
-      setBusy(false);
-    }
-  }
-  function next() {
-    if (!result) return;
-    if (result.complete) {
-      setFinished(true);
-      setSelectedRange(null);
-    } else {
-      setCurrent(result.nextQuestion);
-      setAnswer("");
-      setResult(null);
-      setSelectedRange(null);
-      answerId.current = null;
-    }
-    focus();
-  }
-  function reset() {
-    if (busy) return;
-    if (
-      !finished &&
+      lesson.code.trim() &&
+      lesson.code !== examples[lesson.language] &&
       !window.confirm(
-        "Вернуться к коду? Текущий разбор и ответы исчезнут с этой страницы.",
+        "Заменить код учебным примером? Последнюю замену можно будет отменить.",
       )
     )
       return;
-    setTraining(null);
-    setCurrent(null);
-    setResult(null);
-    setTurns([]);
-    setFinished(false);
-    setError("");
-    createId.current = null;
+    updateLesson({
+      code: examples[lesson.language],
+      title: "Сумма чётных чисел",
+      lastEdit: { before: lesson.code, after: examples[lesson.language] },
+    });
+    setSelected(null);
   }
-  const highlight = selectedRange ?? (finished ? null : current);
+
+  function newLesson() {
+    if (workspace.lessons.length >= 20) {
+      setNotice(
+        "Сохранено 20 занятий. Удали ненужное в списке занятий, чтобы создать новое.",
+      );
+      return;
+    }
+    const created = createLesson(lesson.language);
+    setWorkspace((previous) => ({
+      ...previous,
+      activeId: created.id,
+      lessons: [...previous.lessons, created],
+    }));
+    setSelected(null);
+    setQuestionOpen(true);
+    setMobilePanel("code");
+  }
+
+  function deleteLesson(id: string) {
+    if (!window.confirm("Удалить это занятие вместе с кодом и диалогом?"))
+      return;
+    const remaining = workspace.lessons.filter((item) => item.id !== id);
+    if (!remaining.length) remaining.push(createLesson(lesson.language));
+    setWorkspace({
+      version: 2,
+      activeId:
+        workspace.activeId === id ? remaining[0].id : workspace.activeId,
+      lessons: remaining,
+    });
+    setSelected(null);
+  }
+
+  function send(text: string, requestedIntent?: ChatIntent) {
+    const input = text.trim();
+    if (!input || chatFull) return;
+    const intent = requestedIntent ?? inferIntent(input);
+    const additions: Message[] = [
+      message(
+        "user",
+        input,
+        selected ? { range: selected, sourceCode: lesson.code } : {},
+      ),
+    ];
+    let question = lesson.question;
+    if (intent === "question" && lesson.code.trim()) {
+      if (!question || question.feedback !== null)
+        question = makeQuestion(lesson);
+      additions.push(
+        message(
+          "assistant",
+          "Открыл вопрос в карточке ниже. Можешь отвечать там, а здесь — уточнять непонятное или просить подсказку.",
+          { range: question.range, sourceCode: question.code },
+        ),
+      );
+      setQuestionOpen(true);
+      if (question.code === lesson.code) setSelected(question.range);
+    } else {
+      additions.push(reply(lesson, intent, account.level, selected));
+      if (intent === "hint" && question)
+        question = { ...question, hintUsed: true };
+    }
+    updateLesson({
+      messages: [...lesson.messages, ...additions],
+      draft: "",
+      question,
+    });
+    setMobilePanel("chat");
+    chatInput.current?.focus({ preventScroll: true });
+  }
+
+  function submitChat(event: FormEvent) {
+    event.preventDefault();
+    send(lesson.draft);
+  }
+
+  function submitAnswer() {
+    const question = lesson.question;
+    if (
+      !question ||
+      question.feedback !== null ||
+      (question.kind !== "code" && !question.answer.trim()) ||
+      chatFull
+    )
+      return;
+    const feedback = checkQuestion(question, lesson.code);
+    updateLesson({
+      question: { ...question, feedback },
+      answered: lesson.answered + 1,
+      messages: [
+        ...lesson.messages,
+        message(
+          "user",
+          `${question.text}\n\nМой ответ — ${question.kind === "code" ? "изменение в редакторе" : question.answer}`,
+          {
+            kind: "answer",
+            range: question.range,
+            sourceCode: question.kind === "code" ? lesson.code : question.code,
+          },
+        ),
+        message(
+          "assistant",
+          feedback +
+            (question.hintUsed
+              ? "\n\nВ этой попытке использована подсказка."
+              : ""),
+        ),
+      ],
+    });
+  }
+
+  function applyProposal(item: Message) {
+    if (!item.proposal || lesson.code !== item.proposal.before) return;
+    updateLesson({ code: item.proposal.after, lastEdit: item.proposal });
+    setSelected(null);
+  }
+
+  function undo() {
+    if (!lesson.lastEdit || lesson.code !== lesson.lastEdit.after) return;
+    updateLesson({ code: lesson.lastEdit.before, lastEdit: null });
+    setSelected(null);
+  }
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(lesson.code);
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setNotice(
+        "Копирование недоступно. Выдели текст в редакторе и скопируй вручную.",
+      );
+    }
+  }
 
   return (
-    <div className="min-h-screen text-[#203c31] [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45 motion-reduce:[&_*]:transition-none">
-      <a
-        href="#main"
-        className="fixed -top-20 left-4 z-100 bg-[#d9f2ab] p-3 focus:top-4"
-      >
-        К содержимому
+    <main className={s.workspace}>
+      <a className={s.skipLink} href="#chat-input">
+        К диалогу
       </a>
-      <header className="flex min-h-21 items-center gap-8 bg-[#16372d] px-7 text-[#eef6e6] max-md:min-h-18 max-md:gap-3 max-md:px-4 max-sm:flex-wrap max-sm:gap-y-2 max-sm:py-3 max-sm:[&>button]:ml-0 max-sm:[&>button]:w-full">
-        <a
-          href="#main"
-          className="flex shrink-0 items-center gap-1 text-2xl font-bold tracking-tight [&>span]:mr-2 [&>span]:flex [&>span]:text-[#cef398] [&>b]:text-[#c4ea8c] max-md:text-xl"
-        >
-          <span>
-            <Icon name="code" size={23} />
-          </span>
-          CodeProof<b>.</b>
-        </a>
-        <span className="text-xs text-[#b0c5b1] max-lg:hidden">
-          Понимание начинается с твоего кода
-        </span>
-        {profile && !training && !editingProfile && (
-          <button
-            className="ml-auto flex cursor-pointer items-center gap-2 rounded-lg border border-[#416343] bg-[#274c39] px-3 py-2.5 text-xs text-[#d4e5c2] max-md:max-w-36 max-md:text-[10px]"
-            disabled={busy}
-            onClick={() => setEditingProfile(true)}
-          >
-            <Icon name="spark" size={15} /> Настроить объяснения
-          </button>
-        )}
+      <header className={s.workspaceHeader}>
+        <Link href="/" className={s.logo}>
+          CodeProof<span>.</span>
+        </Link>
+        <span className={s.headerDivider} />
+        <span className={s.headerCaption}>Учебная мастерская</span>
+        <details className={s.demoInfo}>
+          <summary className={s.badge}>
+            <span className={s.dot} />
+            Демо-режим
+          </summary>
+          <div>
+            Профиль и занятия сохраняются в этом браузере. Для 12 языков
+            подготовлены учебные примеры, реплики и вопросы. Свободный диалог с
+            ИИ и серверный вход будут доступны после подключения бэкенда.
+          </div>
+        </details>
+        <Link href="/profile" className={s.accountName}>
+          {account.name}
+          <Icon name="user" size={16} />
+        </Link>
       </header>
-      <main
-        id="main"
-        className="mx-auto max-w-314 px-7 pt-13 max-md:px-4 max-md:pt-7"
-      >
-        {!hydrated ? (
-          <p
-            role="status"
-            className="min-h-75 py-25 text-center text-[#718663]"
-          >
-            Открываем твоё пространство…
-          </p>
-        ) : !profile || editingProfile ? (
-          <LearnerOnboarding
-            initial={profile}
-            onComplete={saveProfile}
-            onCancel={profile ? () => setEditingProfile(false) : undefined}
-          />
-        ) : (
-          <>
-            {storageNotice && (
-              <p
-                role="status"
-                className="mb-5 rounded-lg bg-[#f4eddc] px-5 py-4 text-[13px] leading-[1.7] text-[#776039]"
-              >
-                {storageNotice}
-              </p>
-            )}
-            {!training ? (
-              <>
-                <section className="mb-9 grid grid-cols-[minmax(0,1fr)_300px] items-center gap-15 [&_h1]:mb-5 [&_h1]:text-[45px] [&_h1]:leading-[1.14] [&_h1]:font-semibold [&_h1]:tracking-[-1.7px] [&_h1_em]:text-[#63874b] [&_h1_em]:not-italic [&>div>p]:max-w-137.5 [&>div>p]:text-[15px] [&>div>p]:leading-[1.85] [&>div>p]:text-[#6b7f65] max-lg:grid-cols-[minmax(0,1fr)_270px] max-lg:gap-7 max-lg:[&_h1]:text-[38px] max-md:grid-cols-1 max-md:gap-6 max-md:[&_h1]:text-4xl max-sm:[&_h1]:text-3xl">
-                  <div>
-                    <span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">
-                      ТВОЙ КОД. ТВОЁ ПОНИМАНИЕ.
-                    </span>
-                    <h1>
-                      Вставь свою работу.
-                      <br />
-                      <em>Разберём её вместе.</em>
-                    </h1>
-                    <p>
-                      ИИ разберётся в программе, подберёт вопросы и поможет
-                      подготовиться к объяснению — на понятном тебе языке.
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-[#dfe9d4] bg-[#eaf1e0] p-6 [&>svg]:mb-4 [&>svg]:text-[#88a85b] [&>span]:mb-3 [&>span]:block [&>span]:text-[9px] [&>span]:tracking-[1.6px] [&>span]:text-[#6f855c] [&>strong]:block [&>strong]:text-lg [&>strong]:font-semibold [&>p]:mt-3 [&>p]:text-xs! [&>p]:leading-[1.8] [&>p]:text-[#6b805c] max-md:p-5 max-md:[&>svg]:float-right max-md:[&>svg]:mb-0">
-                    <Icon name="spark" size={24} />
-                    <span>ОБЪЯСНЕНИЯ ПОД ТЕБЯ</span>
-                    <strong>
-                      {profile.languages.length
-                        ? profile.languages.join(" · ")
-                        : "Начнём с основ"}
-                    </strong>
-                    <p>
-                      Без ярлыков «новичок» и «эксперт». Термины и формулировки
-                      уточняются по твоим ответам.
-                    </p>
-                  </div>
-                </section>
-                <div className="grid grid-cols-[minmax(0,1.8fr)_minmax(270px,1fr)] gap-8 max-lg:gap-6 max-md:grid-cols-1">
-                  <form
-                    onSubmit={prepare}
-                    className="min-w-0 overflow-hidden rounded-xl border border-[#dbe4d4] bg-white"
-                    aria-label="Подготовка своей работы"
-                  >
-                    <div className="flex items-center justify-between gap-3 border-b border-[#dfe8d5] bg-[#f0f5e9] px-6 py-4.5 text-xs text-[#5b7550] [&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2.5 [&>span:first-child]:text-sm [&>span:first-child]:font-semibold [&>span:last-child]:text-right [&>span:last-child]:text-[10px] max-md:px-4 max-md:[&>span:last-child]:max-w-32 max-md:[&>span:last-child]:text-[9px]">
-                      <span>
-                        <Icon name="code" /> Твой код
-                      </span>
-                      <span>Язык определится автоматически</span>
-                    </div>
-                    <label className="sr-only" htmlFor="source-code">
-                      Код программы
-                    </label>
-                    <textarea
-                      id="source-code"
-                      className="block min-h-87.5 w-full resize-y border-0 bg-[#20392f] px-6 py-6 font-mono text-sm leading-[1.8] text-[#e4eddb] [tab-size:4] placeholder:text-[#a7baa1] focus:outline-2 focus:-outline-offset-3 focus:outline-[#93bd66] max-md:min-h-75 max-md:p-5 max-md:text-[13px]"
-                      value={code}
-                      onChange={(e) => {
-                        setCode(e.target.value.replace(/\r\n?/g, "\n"));
-                        createId.current = null;
-                        setError("");
-                      }}
-                      disabled={busy}
-                      maxLength={10000}
-                      spellCheck={false}
-                      autoCapitalize="off"
-                      autoComplete="off"
-                      placeholder={
-                        "// Вставь сюда свою программу…\n\nНазвание, язык и вопросы подготовит ИИ."
-                      }
-                    />
-                    <div className="flex items-center justify-between gap-3 px-6 py-3.5 text-[11px] text-[#6e7d64] max-md:px-4 max-md:text-[10px]">
-                      <span>Один фрагмент · до 10 000 символов</span>
-                      <span>
-                        {code.length.toLocaleString("ru-RU")} / 10 000
-                      </span>
-                    </div>
-                    {error && (
-                      <div
-                        className="mx-6 mt-2.5 mb-4.5 rounded-lg border border-[#ebcdb8] bg-[#fff1e8] px-5 py-4 text-[13px] leading-[1.7] text-[#885d3f] max-md:mx-4"
-                        role="alert"
-                      >
-                        {error}
-                      </div>
-                    )}
-                    <div className="flex flex-wrap items-center gap-5 px-6 pt-2.5 pb-6 [&>span]:text-[11px] [&>span]:text-[#748367] max-md:gap-3.5 max-md:px-4 max-md:pb-5 max-md:[&>button:first-child]:w-full max-md:[&>span]:w-full max-md:[&>span]:text-center">
-                      <button
-                        className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-transparent bg-[#28573e] px-4.5 py-3 text-[13px] font-semibold text-[#f4f9ec] transition-colors enabled:hover:bg-[#3d704b] max-sm:gap-2 max-sm:px-3 max-sm:text-xs"
-                        disabled={busy || !code.trim()}
-                        type="submit"
-                      >
-                        {busy ? (
-                          <>
-                            <span className="size-3.5 animate-spin rounded-full border-2 border-[#8eac77] border-t-[#e6f1d4] motion-reduce:animate-none" />{" "}
-                            Подготавливаем разбор…
-                          </>
-                        ) : (
-                          <>
-                            Подготовиться к защите{" "}
-                            <Icon name="arrow" size={18} />
-                          </>
-                        )}
-                      </button>
-                      {busy ? (
-                        <button
-                          className="inline-flex cursor-pointer items-center gap-2 border-0 bg-transparent py-3 text-xs text-[#5e7d4c] hover:underline"
-                          type="button"
-                          onClick={() => controller.current?.abort()}
-                        >
-                          Отменить запрос
-                        </button>
-                      ) : (
-                        <span>Никаких дополнительных настроек</span>
-                      )}
-                    </div>
-                    {busy && (
-                      <p
-                        role="status"
-                        className="mx-6 mb-5 text-xs leading-[1.7] text-[#667e54]"
-                      >
-                        Ждём ответ ИИ: название работы, объяснение кода и первый
-                        вопрос.
-                      </p>
-                    )}
-                  </form>
-                  <aside className="pt-4 [&_h2]:mb-7 [&_h2]:text-[27px] [&_h2]:leading-[1.3] [&_h2]:font-medium [&_h2]:tracking-[-.8px] [&_ol]:m-0 [&_ol]:list-none [&_ol]:p-0 [&_li]:my-6 [&_li]:flex [&_li]:gap-4 [&_li>span]:grid [&_li>span]:size-8 [&_li>span]:shrink-0 [&_li>span]:place-items-center [&_li>span]:rounded-full [&_li>span]:border [&_li>span]:border-[#dce8cd] [&_li>span]:bg-[#eaf2df] [&_li>span]:text-[11px] [&_li>span]:text-[#6d8d4e] [&_h3]:mt-1 [&_h3]:mb-2 [&_h3]:text-[15px] [&_h3]:font-semibold [&_li_p]:text-[13px] [&_li_p]:leading-[1.75] [&_li_p]:text-[#73846a]">
-                    <span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">
-                      ЧТО БУДЕТ ДАЛЬШЕ
-                    </span>
-                    <h2>
-                      От работающего кода
-                      <br />к ясному объяснению.
-                    </h2>
-                    <ol>
-                      <li>
-                        <span>01</span>
-                        <div>
-                          <h3>Поймём твою программу</h3>
-                          <p>
-                            Назначение, логика и важные фрагменты — в одном
-                            разборе.
-                          </p>
-                        </div>
-                      </li>
-                      <li>
-                        <span>02</span>
-                        <div>
-                          <h3>Порепетируем защиту</h3>
-                          <p>
-                            Вопросы по твоему коду, с учётом знакомых тебе
-                            терминов.
-                          </p>
-                        </div>
-                      </li>
-                      <li>
-                        <span>03</span>
-                        <div>
-                          <h3>Разберём ответы</h3>
-                          <p>
-                            Что получилось объяснить и к чему стоит вернуться.
-                          </p>
-                        </div>
-                      </li>
-                    </ol>
-                    <div className="mt-6 flex gap-3 rounded-lg bg-[#eaf0e1] p-4.5 [&>svg]:mt-1 [&>svg]:shrink-0 [&>svg]:text-[#7d9d59] [&>p]:text-xs [&>p]:leading-[1.8] [&>p]:text-[#60784e]">
-                      <Icon name="book" />
-                      <p>
-                        Не знаешь термин? Это не значит, что ты не понимаешь
-                        код. Объясняй своими словами.
-                      </p>
-                    </div>
-                  </aside>
-                </div>
-                <div className="my-6 flex gap-2.5 text-[#73846a] [&>svg]:mt-1 [&>svg]:shrink-0 [&>p]:max-w-187.5 [&>p]:text-[11px] [&>p]:leading-[1.7]">
-                  <Icon name="check" size={16} />
-                  <p>
-                    Профиль знакомства хранится в этом браузере. Код
-                    отправляется на разбор только по нажатию кнопки и не
-                    записывается в localStorage.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="mb-7.5 flex items-center justify-between gap-6 [&_h1]:m-0 [&_h1]:text-[35px] [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:[overflow-wrap:anywhere] max-lg:[&_h1]:text-[29px] max-md:flex-col max-md:items-start max-md:gap-4">
-                  <div>
-                    <span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">
-                      {training.language} · ТВОЯ РАБОТА
-                    </span>
-                    <h1>{training.title}</h1>
-                  </div>
+      <div className={s.workspaceTitle}>
+        <div>
+          <span className={s.eyebrow}>ПРОСТРАНСТВО ДЛЯ ТВОИХ ИДЕЙ</span>
+          <h1>
+            Разберём твой код<span>.</span>
+          </h1>
+          <p>Пиши, спрашивай и проверяй себя — всё в одном месте.</p>
+        </div>
+        <div className={s.lessonTools}>
+          <details className={s.lessonHistory}>
+            <summary className={s.secondary}>
+              <Icon name="clock" size={15} />
+              Занятия <span>{workspace.lessons.length}</span>
+            </summary>
+            <div className={s.historyList}>
+              <strong>Твои занятия</strong>
+              {[...workspace.lessons].reverse().map((item) => (
+                <div key={item.id}>
                   <button
-                    className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-[#dbe6d0] bg-white px-4.5 py-3 text-[13px] font-semibold text-[#617e4d] transition-colors enabled:hover:bg-[#f2f7ea] max-sm:gap-2 max-sm:px-3 max-sm:text-xs"
-                    disabled={busy}
-                    onClick={reset}
+                    aria-current={lesson.id === item.id ? "true" : undefined}
+                    onClick={(event) => {
+                      setWorkspace((previous) => ({
+                        ...previous,
+                        activeId: item.id,
+                      }));
+                      setSelected(null);
+                      setQuestionOpen(true);
+                      const details = event.currentTarget.closest("details");
+                      if (details) details.open = false;
+                    }}
                   >
-                    Вернуться к коду
+                    <span>{item.title}</span>
+                    <small>
+                      {item.language} · ответов {item.answered}
+                    </small>
+                  </button>
+                  <button
+                    className={s.iconButton}
+                    aria-label={`Удалить занятие ${item.title}`}
+                    onClick={() => deleteLesson(item.id)}
+                  >
+                    <Icon name="close" size={14} />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 items-start gap-7 max-lg:gap-5 max-md:grid-cols-1 [&_form>div]:mx-0 [&_form>div]:px-0 [&_form>div[role=alert]]:px-4 [&_form>div[role=status]]:px-4">
-                  <div className="grid min-w-0 gap-6">
-                    <section
-                      className="overflow-hidden rounded-xl bg-[#20382e] text-[#deead1] [&>div:first-child]:border-[#3d5741] [&>div:first-child]:bg-[#2a4536] [&>div:first-child]:text-[#b6cda1]"
-                      aria-label="Исходный код"
-                    >
-                      <div className="flex items-center justify-between gap-3 border-b border-[#dfe8d5] bg-[#f0f5e9] px-6 py-4.5 text-xs text-[#5b7550] [&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2.5 [&>span:first-child]:text-sm [&>span:first-child]:font-semibold [&>span:last-child]:text-right [&>span:last-child]:text-[10px] max-md:px-4 max-md:[&>span:last-child]:max-w-32 max-md:[&>span:last-child]:text-[9px]">
-                        <span>
-                          <Icon name="code" size={18} /> {training.language}
-                        </span>
-                        <span>
-                          {highlight
-                            ? `Строки ${highlight.lineStart}–${highlight.lineEnd}`
-                            : "Твой исходник"}
-                        </span>
-                      </div>
-                      <div className="max-h-130 overflow-auto py-5 font-mono text-[13px] leading-8 [&>div]:flex [&>div]:min-w-max [&>div]:px-5 [&>div]:whitespace-pre [&>div>span]:w-8.5 [&>div>span]:shrink-0 [&>div>span]:text-[#a0b594] [&>div>span]:select-none max-md:max-h-87.5 max-md:text-xs">
-                        {code.split("\n").map((line, i) => (
-                          <div
-                            key={i}
-                            className={
-                              highlight &&
-                              i + 1 >= highlight.lineStart &&
-                              i + 1 <= highlight.lineEnd
-                                ? "bg-[#3c5639] shadow-[inset_3px_0_#c1df86]"
-                                : ""
-                            }
-                          >
-                            <span aria-hidden="true">{i + 1}</span>
-                            <code>{line || " "}</code>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                    <section className="min-w-0 rounded-xl border border-[#dce6d3] bg-white p-7.5 [&_h2]:mb-4 [&_h2]:text-[25px] [&_h2]:leading-[1.4] [&_h2]:font-semibold [&_h2]:tracking-[-.5px] max-lg:p-6 max-md:[&_h2]:text-[23px] max-sm:p-5 max-sm:[&_h2]:text-xl">
-                      <span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">
-                        РАЗБОР ПРОГРАММЫ
-                      </span>
-                      <h2>Что делает твой код</h2>
-                      <p className="text-sm leading-[1.85] whitespace-pre-wrap text-[#607650] [overflow-wrap:anywhere]">
-                        {training.overview}
-                      </p>
-                      {training.sections.map((section, i) => (
-                        <details
-                          className="mb-4 border-b border-[#e0e8d6] py-4 [&_summary]:cursor-pointer [&_summary]:text-sm [&_summary]:leading-[1.7] [&_summary]:text-[#476b39] [&_summary]:[overflow-wrap:anywhere]"
-                          key={i}
-                        >
-                          <summary>{section.title}</summary>
-                          <p className="text-sm leading-[1.85] whitespace-pre-wrap text-[#607650] [overflow-wrap:anywhere]">
-                            {section.explanation}
-                          </p>
-                          <button
-                            className="inline-flex cursor-pointer items-center gap-2 border-0 bg-transparent py-3 text-xs text-[#5e7d4c] hover:underline"
-                            onClick={() => setSelectedRange(section)}
-                          >
-                            Выделить строки {section.lineStart}–
-                            {section.lineEnd}
-                          </button>
-                        </details>
-                      ))}
-                      {selectedRange && (
-                        <button
-                          className="inline-flex cursor-pointer items-center gap-2 border-0 bg-transparent py-3 text-xs text-[#5e7d4c] hover:underline"
-                          onClick={() => setSelectedRange(null)}
-                        >
-                          Вернуть подсветку вопроса
-                        </button>
-                      )}
-                    </section>
-                  </div>
-                  <section
-                    className="min-w-0 rounded-xl border border-[#dce6d3] bg-white p-7.5 [&_h2]:mb-4 [&_h2]:text-[25px] [&_h2]:leading-[1.4] [&_h2]:font-semibold [&_h2]:tracking-[-.5px] max-lg:p-6 max-md:[&_h2]:text-[23px] max-sm:p-5 max-sm:[&_h2]:text-xl"
-                    aria-label="Репетиция защиты"
+              ))}
+            </div>
+          </details>
+          <button className={s.primary} onClick={newLesson}>
+            <span aria-hidden="true">+</span>Новое занятие
+          </button>
+        </div>
+      </div>
+      {(notice || saved.error) && (
+        <div className={s.notice} role="alert">
+          {saved.error || notice}
+          {!saved.error && (
+            <button
+              aria-label="Скрыть уведомление"
+              onClick={() => setNotice("")}
+            >
+              <Icon name="close" size={15} />
+            </button>
+          )}
+        </div>
+      )}
+      <div
+        className={s.mobileTabs}
+        role="group"
+        aria-label="Панель рабочей области"
+      >
+        <button
+          aria-pressed={mobilePanel === "code"}
+          onClick={() => setMobilePanel("code")}
+        >
+          <Icon name="code" size={17} />
+          Код
+        </button>
+        <button
+          aria-pressed={mobilePanel === "chat"}
+          onClick={() => setMobilePanel("chat")}
+        >
+          <Icon name="spark" size={17} />
+          Диалог{" "}
+          {lesson.question && !lesson.question.feedback && (
+            <span className={s.dot} />
+          )}
+        </button>
+      </div>
+      <div className={s.workbench}>
+        <section
+          className={`${s.editorPanel} ${mobilePanel !== "code" ? s.mobileHidden : ""}`}
+          aria-label="Работа с кодом"
+        >
+          <div className={s.editorToolbar}>
+            <span>
+              <Icon name="code" size={16} />
+              main.{language.extension}
+            </span>
+            <select
+              aria-label="Язык кода"
+              value={lesson.language}
+              onChange={(event) =>
+                chooseLanguage(event.target.value as Language)
+              }
+            >
+              {languages.map((item) => (
+                <option key={item.name}>{item.name}</option>
+              ))}
+            </select>
+            <button onClick={loadExample}>Учебный пример</button>
+          </div>
+          <div className={s.editorSubbar}>
+            <span>{isSample ? "Сумма выбранных чисел" : "Твой код"}</span>
+            <div>
+              <button
+                onClick={undo}
+                disabled={
+                  !lesson.lastEdit || lesson.code !== lesson.lastEdit.after
+                }
+                aria-label="Отменить замену кода"
+                title="Отменить замену"
+              >
+                <Icon name="repeat" size={15} />
+              </button>
+              <button onClick={copyCode} aria-label="Скопировать код">
+                {copied ? "Скопировано" : "Копировать"}
+              </button>
+            </div>
+          </div>
+          <CodeEditor
+            code={lesson.code}
+            onChange={updateCode}
+            highlight={selected}
+            onSelection={setSelected}
+          />
+          <div className={s.editorFooter}>
+            <span>
+              <span className={s.dot} />
+              {saved.error
+                ? "Не сохранено"
+                : saved.snapshot === workspace
+                  ? "Сохранено в браузере"
+                  : "Сохраняем…"}
+            </span>
+            <span>
+              {lesson.code.split("\n").length} строк · {lesson.code.length} / 20
+              000
+            </span>
+          </div>
+          <div className={s.editorHelp} id="editor-help">
+            <Icon name="spark" size={16} />
+            <span>
+              Выдели строки, чтобы обсудить конкретный фрагмент. Tab — отступ,
+              Shift+Tab — выход из редактора.
+            </span>
+          </div>
+        </section>
+        <section
+          className={`${s.chatPanel} ${mobilePanel !== "chat" ? s.mobileHidden : ""}`}
+          aria-label="Диалог с помощником"
+        >
+          <div className={s.chatHeader}>
+            <span className={s.assistantIcon}>
+              <Icon name="spark" size={19} />
+            </span>
+            <div>
+              <h2>Разбираемся вместе</h2>
+              <p>CodeProof · учебный помощник</p>
+            </div>
+            <span className={s.chatStatus}>Демо</span>
+          </div>
+          <div
+            className={s.transcript}
+            ref={transcript}
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions text"
+            aria-label="История диалога"
+          >
+            <div className={s.chatDate}>
+              ТВОЁ ЗАНЯТИЕ · {lesson.language.toUpperCase()}
+            </div>
+            {lesson.messages.map((item) => (
+              <article
+                className={`${s.message} ${item.role === "user" ? s.userMessage : s.assistantMessage}`}
+                key={item.id}
+              >
+                <span className={s.messageAuthor}>
+                  {item.role === "user" ? (
+                    "Ты"
+                  ) : (
+                    <>
+                      <Icon name="spark" size={13} /> CodeProof
+                    </>
+                  )}
+                  {item.kind === "answer" && <small>Ответ на вопрос</small>}
+                </span>
+                <p>{item.text}</p>
+                {item.range && (
+                  <button
+                    className={s.codeReference}
+                    disabled={item.sourceCode !== lesson.code}
+                    onClick={() => {
+                      setSelected(item.range!);
+                      setMobilePanel("code");
+                    }}
                   >
-                    {finished ? (
-                      <>
-                        <span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">
-                          ТРЕНИРОВКА ЗАВЕРШЕНА
-                        </span>
-                        <h2 ref={heading} tabIndex={-1}>
-                          Теперь объяснить проще
-                        </h2>
-                        <div className="my-5 flex items-center gap-5 rounded-lg bg-[#eff6e5] p-5 [&_strong]:text-[37px] [&_strong]:tracking-tight [&_strong]:text-[#5a803e] [&_small]:text-xl [&_small]:text-[#819966] [&>span]:text-[11px] [&>span]:text-[#6e835a]">
-                          <strong>
-                            {turns.reduce(
-                              (sum, t) => sum + t.feedback.score,
-                              0,
-                            )}
-                            <small>/50</small>
-                          </strong>
-                          <span>Оценка ИИ для самопроверки</span>
-                        </div>
-                        <p className="mb-6 text-sm leading-[1.8] text-[#738667]">
-                          Вернись к объяснениям, которые вызвали трудности.
-                          Оценка ИИ может содержать ошибки.
-                        </p>
-                        {turns.map((turn, i) => (
-                          <details
-                            key={turn.question.id}
-                            className="mb-4 border-b border-[#e0e8d6] py-4 [&_summary]:cursor-pointer [&_summary]:text-sm [&_summary]:leading-[1.7] [&_summary]:text-[#476b39] [&_summary]:[overflow-wrap:anywhere]"
-                          >
-                            <summary>
-                              {i + 1}. {turn.question.text} ·{" "}
-                              {turn.feedback.score}/10
-                            </summary>
-                            <p className="text-sm leading-[1.85] whitespace-pre-wrap text-[#607650] [overflow-wrap:anywhere]">
-                              <strong>Твой ответ:</strong> {turn.answer}
-                            </p>
-                            <p className="text-sm leading-[1.85] whitespace-pre-wrap text-[#607650] [overflow-wrap:anywhere]">
-                              {turn.feedback.summary}
-                            </p>
-                            <p className="text-sm leading-[1.85] whitespace-pre-wrap text-[#607650] [overflow-wrap:anywhere]">
-                              {turn.feedback.explanation}
-                            </p>
-                          </details>
-                        ))}
-                        <button
-                          className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-transparent bg-[#28573e] px-4.5 py-3 text-[13px] font-semibold text-[#f4f9ec] transition-colors enabled:hover:bg-[#3d704b] max-sm:gap-2 max-sm:px-3 max-sm:text-xs"
-                          onClick={reset}
-                        >
-                          Вернуться к своей работе{" "}
-                          <Icon name="arrow" size={17} />
-                        </button>
-                      </>
-                    ) : (
-                      current && (
-                        <>
-                          <div className="mb-4 flex items-center justify-between gap-4 [&>span:first-child]:mb-0 max-md:gap-2.5 max-md:[&>span:last-child]:text-[8px]">
-                            <span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">
-                              ВОПРОС {current.number} ИЗ 5
-                            </span>
-                            <span className="rounded border border-[#e1ead7] bg-[#f6f9f0] px-2 py-1 text-[10px] text-[#698652]">
-                              Без таймера
-                            </span>
-                          </div>
-                          <div className="mb-6 h-1 overflow-hidden rounded bg-[#e9f0e0] [&>span]:block [&>span]:h-full [&>span]:rounded [&>span]:bg-[#96b66b] [&>span]:transition-[width]">
-                            <span
-                              style={{
-                                width: `${((current.number - 1) / 5) * 100}%`,
-                              }}
-                            />
-                          </div>
-                          <h2 ref={heading} tabIndex={-1}>
-                            {current.text}
-                          </h2>
-                          {current.modifiedCode && (
-                            <div className="rounded-lg border border-[#e4dfbf] bg-[#f9f6e8] p-4 text-xs text-[#73683d] [&_pre]:overflow-auto [&_pre]:font-mono [&_pre]:text-xs [&_pre]:leading-[1.8] [&_pre]:whitespace-pre [&>span]:text-[10px]">
-                              <strong>Если заменить выделенные строки:</strong>
-                              <pre>
-                                <code>{current.modifiedCode}</code>
-                              </pre>
-                              <span>Исходный код слева не изменён.</span>
-                            </div>
-                          )}
-                          <form onSubmit={checkAnswer}>
-                            <label className="mt-6 flex flex-col gap-3 text-[13px] font-semibold [&_textarea]:min-h-44 [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-[#d9e4cc] [&_textarea]:bg-[#fbfcf8] [&_textarea]:p-4 [&_textarea]:text-sm [&_textarea]:leading-[1.8] [&_textarea]:font-normal [&_textarea]:text-[#34502c] [&_textarea:focus-visible]:outline-2 [&_textarea:focus-visible]:outline-offset-2 [&_textarea:focus-visible]:outline-[#8fac67] [&_textarea:read-only]:bg-[#f0f4e9]">
-                              Твоё объяснение
-                              <textarea
-                                value={answer}
-                                onChange={(e) => {
-                                  setAnswer(e.target.value);
-                                  answerId.current = null;
-                                  setError("");
-                                }}
-                                disabled={busy}
-                                readOnly={!!result}
-                                maxLength={2000}
-                                required
-                                placeholder="Объясни своими словами. Можно написать «Не знаю»."
-                              />
-                            </label>
-                            <div className="flex items-center justify-between gap-3 px-6 py-3.5 text-[11px] text-[#6e7d64] max-md:px-4 max-md:text-[10px]">
-                              <span>Не нужно угадывать</span>
-                              <span>{answer.length} / 2 000</span>
-                            </div>
-                            {error && (
-                              <div
-                                role="alert"
-                                className="mx-6 mt-2.5 mb-4.5 rounded-lg border border-[#ebcdb8] bg-[#fff1e8] px-5 py-4 text-[13px] leading-[1.7] text-[#885d3f] max-md:mx-4"
-                              >
-                                {error}
-                              </div>
-                            )}
-                            {result ? (
-                              <>
-                                <div
-                                  className="mb-6 rounded-lg border border-[#dfebce] bg-[#eef5e4] p-5 text-sm text-[#567b3f] [&>span]:text-[10px]"
-                                  role="status"
-                                >
-                                  <strong>{result.feedback.summary}</strong>
-                                  <p className="text-sm leading-[1.85] whitespace-pre-wrap text-[#607650] [overflow-wrap:anywhere]">
-                                    {result.feedback.explanation}
-                                  </p>
-                                  <span>
-                                    {result.feedback.score}/10 · Оценка ИИ для
-                                    самопроверки
-                                  </span>
-                                </div>
-                                <button
-                                  className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-transparent bg-[#28573e] px-4.5 py-3 text-[13px] font-semibold text-[#f4f9ec] transition-colors enabled:hover:bg-[#3d704b] max-sm:gap-2 max-sm:px-3 max-sm:text-xs"
-                                  type="button"
-                                  onClick={next}
-                                >
-                                  {result.complete
-                                    ? "Посмотреть результат"
-                                    : "Следующий вопрос"}
-                                  <Icon name="arrow" size={17} />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-transparent bg-[#28573e] px-4.5 py-3 text-[13px] font-semibold text-[#f4f9ec] transition-colors enabled:hover:bg-[#3d704b] max-sm:gap-2 max-sm:px-3 max-sm:text-xs"
-                                  type="submit"
-                                  disabled={busy || !answer.trim()}
-                                >
-                                  {busy ? "Проверяем объяснение…" : "Ответить"}
-                                  <Icon name="arrow" size={17} />
-                                </button>
-                                {busy && (
-                                  <button
-                                    className="inline-flex cursor-pointer items-center gap-2 border-0 bg-transparent py-3 text-xs text-[#5e7d4c] hover:underline"
-                                    type="button"
-                                    onClick={() => controller.current?.abort()}
-                                  >
-                                    Отменить запрос
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </form>
-                        </>
-                      )
-                    )}
-                  </section>
-                </div>
-                <p className="mt-4 text-[11px] leading-[1.8] text-[#758966]">
-                  Код и текущая тренировка доступны до перезагрузки страницы.
-                  Долговременное хранение появится после подключения аккаунта.
-                </p>
-              </>
+                    <Icon name="code" size={13} />
+                    Строки {item.range.start}–{item.range.end}
+                    {item.sourceCode !== lesson.code
+                      ? " · предыдущая версия"
+                      : " ↗"}
+                  </button>
+                )}
+                {item.range && item.sourceCode !== lesson.code && (
+                  <details className={s.oldCode}>
+                    <summary>Посмотреть прежний фрагмент</summary>
+                    <pre>
+                      {item.sourceCode
+                        ?.split("\n")
+                        .slice(item.range.start - 1, item.range.end)
+                        .join("\n")}
+                    </pre>
+                  </details>
+                )}
+                {item.proposal && (
+                  <div className={s.proposal}>
+                    <span>ПРЕДЛОЖЕНИЕ ДЛЯ РЕДАКТОРА</span>
+                    <pre>
+                      <del>
+                        {item.proposal.before
+                          .split("\n")
+                          .find((line) => line.includes("% 2"))}
+                      </del>
+                      <ins>
+                        {item.proposal.after
+                          .split("\n")
+                          .find((line) => line.includes("% 2"))}
+                      </ins>
+                    </pre>
+                    <button
+                      className={s.secondary}
+                      disabled={lesson.code !== item.proposal.before}
+                      onClick={() => applyProposal(item)}
+                    >
+                      {lesson.code === item.proposal.after
+                        ? "Уже в редакторе"
+                        : lesson.code !== item.proposal.before
+                          ? "Код уже изменён"
+                          : "Применить изменение"}
+                      <Icon name="arrow" size={14} />
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+          {lesson.question &&
+            (questionOpen ? (
+              <QuestionCard
+                disabled={chatFull}
+                question={lesson.question}
+                codeChanged={lesson.question.code !== lesson.code}
+                onUpdate={(answer) =>
+                  updateLesson({ question: { ...lesson.question!, answer } })
+                }
+                onSubmit={submitAnswer}
+                onHint={() =>
+                  updateLesson({
+                    question: { ...lesson.question!, hintUsed: true },
+                  })
+                }
+                onClose={() => {
+                  setQuestionOpen(false);
+                  chatInput.current?.focus();
+                }}
+                onRetry={() =>
+                  updateLesson({
+                    question: {
+                      ...lesson.question!,
+                      id: crypto.randomUUID(),
+                      feedback: null,
+                      answer: "",
+                      hintUsed: false,
+                    },
+                  })
+                }
+              />
+            ) : (
+              <button
+                className={s.restoreQuestion}
+                onClick={() => setQuestionOpen(true)}
+              >
+                <Icon name="book" size={15} />
+                {lesson.question.feedback
+                  ? "Посмотреть ответ"
+                  : "Вопрос ждёт твоего ответа"}
+                <Icon name="chevron" size={14} />
+              </button>
+            ))}
+          <div className={s.composerArea}>
+            <div className={s.quickActions}>
+              <button
+                disabled={chatFull}
+                onClick={() => send("Объясни этот код", "explain")}
+              >
+                Объясни код
+              </button>
+              <button
+                disabled={chatFull}
+                onClick={() => send("Задай мне вопрос", "question")}
+              >
+                Проверь меня
+              </button>
+              <button
+                disabled={chatFull}
+                onClick={() => send("Предложи изменение кода", "change")}
+              >
+                Что если…
+              </button>
+            </div>
+            {selected && (
+              <div className={s.selectedContext}>
+                <Icon name="code" size={13} />В контексте строки{" "}
+                {selected.start}–{selected.end}
+                <button
+                  aria-label="Убрать выделение из контекста"
+                  onClick={() => setSelected(null)}
+                >
+                  <Icon name="close" size={13} />
+                </button>
+              </div>
             )}
-          </>
-        )}
-        <footer className="mt-10 flex items-center justify-between gap-5 border-t border-[#dfe7d7] py-7.5 text-sm font-semibold text-[#5d774b] [&>span>span]:text-[#91ad71] [&_small]:ml-4 [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-[#718465] [&>span:last-child]:text-[11px] [&>span:last-child]:font-normal [&>span:last-child]:text-[#788a6c] max-md:items-start max-md:[&_small]:mt-2 max-md:[&_small]:ml-0 max-md:[&_small]:block max-md:[&_small]:leading-[1.7] max-md:[&>span:last-child]:max-w-25 max-md:[&>span:last-child]:text-right max-md:[&>span:last-child]:leading-[1.7]">
-          <span>
-            CodeProof<span>.</span> <small>Учись объяснять свой код.</small>
-          </span>
-          <a href="/about" target="_blank" rel="noopener noreferrer">
-            О себе ↗<span className="sr-only"> (в новой вкладке)</span>
-          </a>
-        </footer>
-      </main>
-    </div>
+            <form className={s.composer} onSubmit={submitChat}>
+              <label htmlFor="chat-input" className={s.srOnly}>
+                Сообщение помощнику
+              </label>
+              <textarea
+                id="chat-input"
+                ref={chatInput}
+                rows={2}
+                placeholder="Спроси о коде или попроси подсказку…"
+                value={lesson.draft}
+                onChange={(event) =>
+                  updateLesson({ draft: event.target.value })
+                }
+                maxLength={2000}
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter" &&
+                    !event.shiftKey &&
+                    !event.nativeEvent.isComposing
+                  ) {
+                    event.preventDefault();
+                    send(lesson.draft);
+                  }
+                }}
+              />
+              <button
+                type="submit"
+                className={s.sendButton}
+                aria-label="Отправить сообщение"
+                disabled={!lesson.draft.trim() || chatFull}
+              >
+                <Icon name="arrow" size={19} />
+              </button>
+            </form>
+            <div className={s.composerFootnote}>
+              <span>
+                {chatFull
+                  ? "Диалог заполнен. Создай новое занятие."
+                  : "Enter — отправить · Shift+Enter — новая строка"}
+              </span>
+              <span>{lesson.draft.length}/2000</span>
+            </div>
+          </div>
+        </section>
+      </div>
+      <footer className={s.workspaceFooter}>
+        <span>Понимание начинается с хорошего вопроса.</span>
+        <Link href="/profile">
+          Настройки обучения <Icon name="arrow" size={13} />
+        </Link>
+      </footer>
+    </main>
   );
+}
+
+export default function CodeWorkspace() {
+  const { account } = useSession();
+  if (!account) return <AuthScreen />;
+  if (!account.preferencesSet) return <LearnerOnboarding />;
+  return <WorkspaceView key={account.id} account={account} />;
 }

@@ -23,7 +23,7 @@
 .project h2 { font-size: 38px; line-height: 1.15; }
 .project p { color: #506748; font-size: 14px; line-height: 1.85; margin: 18px 0 25px; }
 .scenario { background: #f6f8f3; border-radius: 9px; padding: 26px; }
-.scenario ol { padding-left: 22px; margin: 24px 0; }
+.scenario ul { padding-left: 22px; margin: 24px 0; }
 .scenario li { padding-left: 7px; margin-top: 24px; font-size: 14px; }
 .scenario li::marker { color: #63874b; }
 .scenario p { margin: 7px 0 0; font-size: 13px; }

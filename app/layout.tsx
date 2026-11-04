@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import AppSidebar from "./components/app-sidebar";
-import shell from "./components/app-shell.module.css";
+import AppShell from "./components/app-shell";
+import { SessionProvider } from "./components/session-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CodeProof — подготовка к защите кода",
-  description:
-    "Добавь свою программу и подготовься объяснять её на защите.",
+  description: "Добавь свою программу и подготовься объяснять её на защите.",
 };
 
 export default function RootLayout({
@@ -17,10 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
-        <div className={shell.layout}>
-          <AppSidebar />
-          <div className={shell.content}>{children}</div>
-        </div>
+        <SessionProvider>
+          <AppShell>{children}</AppShell>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -4,9 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "./ui-icon";
 import s from "./app-sidebar.module.css";
+import { useSession } from "./session-provider";
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const { account } = useSession();
+  const initials = account?.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const onHome = pathname === "/";
   const onAbout = pathname === "/about";
   const onProfile = pathname === "/profile";
@@ -34,29 +37,27 @@ export default function AppSidebar() {
         >
           <Icon name="home" size={20} />
         </Link>
-        <a
+        <Link
           href="/about"
-          target={onAbout ? undefined : "_blank"}
-          rel="noopener noreferrer"
           className={`${s.navLink} ${onAbout ? s.active : ""}`}
-          aria-label={onAbout ? "О себе" : "О себе (в новой вкладке)"}
+          aria-label="О проекте"
           aria-current={onAbout ? "page" : undefined}
-          data-tooltip="О себе"
+          data-tooltip="О проекте"
         >
           <Icon name="book" size={20} />
-        </a>
+        </Link>
       </nav>
 
       <div className={s.bottom}>
         <Link
           href="/profile"
           className={`${s.profileLink} ${onProfile ? s.profileActive : ""}`}
-          aria-label="Открыть профиль Алексей Морозов"
+          aria-label={`Открыть профиль ${account?.name ?? ""}`}
           aria-current={onProfile ? "page" : undefined}
           data-tooltip="Профиль"
         >
           <span className={s.avatar} aria-hidden="true">
-            АМ
+            {initials}
           </span>
         </Link>
       </div>
