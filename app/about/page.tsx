@@ -1,55 +1,137 @@
-import type { Metadata } from "next";
 import Link from "next/link";
-import { Icon } from "../components/ui-icon";
-import s from "./page.module.css";
-
-export const metadata: Metadata = {
-  title: "О себе | CodeProof",
-  description: "О проекте CodeProof и нашей команде: Ерасыл, Абзал и Ерсұлтан. Готовимся к защите кода с помощью ИИ.",
-};
-
+import {
+  ArrowRight,
+  ArrowUpRight,
+  CheckCheck,
+  Code2,
+  Database,
+  ShieldCheck,
+} from "lucide-react";
+export const metadata = { title: "О проекте" };
 export default function AboutPage() {
   return (
-    <div className="min-h-screen text-[#203c31] [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45 motion-reduce:[&_*]:transition-none">
-      <a href="#about" className="fixed -top-20 left-4 z-100 bg-[#d9f2ab] p-3 focus:top-4">К содержимому</a>
-      <header className="flex min-h-21 items-center gap-8 bg-[#16372d] px-7 text-[#eef6e6] max-md:min-h-18 max-md:gap-3 max-md:px-4">
-        <Link href="/" className="flex shrink-0 items-center gap-1 text-2xl font-bold tracking-tight [&>span]:mr-2 [&>span]:flex [&>span]:text-[#cef398] [&>b]:text-[#c4ea8c] max-md:text-xl" aria-label="CodeProof, главная">
-          <span><Icon name="code" size={23} /></span>CodeProof<b>.</b>
-        </Link>
-        <span className="text-xs text-[#b0c5b1] max-lg:hidden">Понимание начинается с твоего кода</span>
-        <Link href="/" className="ml-auto flex cursor-pointer items-center gap-2 rounded-lg border border-[#416343] bg-[#274c39] px-3 py-2.5 text-xs text-[#d4e5c2] max-md:max-w-36 max-md:text-[10px]">К приложению <span aria-hidden="true">↗</span></Link>
-      </header>
-      <main id="about" className="mx-auto max-w-314 px-7 pt-13 max-md:px-4 max-md:pt-7">
-        <nav className={s.breadcrumb} aria-label="Хлебные крошки"><Link href="/">Главная</Link><span aria-hidden="true">/</span><span aria-current="page">О себе</span></nav>
-        <section className={s.hero} aria-labelledby="about-heading">
-          <div>
-            <span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">О СЕБЕ · КОМАНДА CODEPROOF</span>
-            <h1 id="about-heading">Мы создаём CodeProof.<br /><span>Чтобы код было<br />легче объяснить.</span></h1>
-            <p className={s.lead}>Мы Ерасыл, Абзал и Ерсұлтан. Вместе работаем над CodeProof, приложением для подготовки студентов к защите программного кода с помощью искусственного интеллекта.</p>
-            <div className={s.actions}><a className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-transparent bg-[#28573e] px-4.5 py-3 text-[13px] font-semibold text-[#f4f9ec] transition-colors enabled:hover:bg-[#3d704b] max-sm:gap-2 max-sm:px-3 max-sm:text-xs" href="#team">Наша команда <span aria-hidden="true">↗</span></a><a className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-[#dbe6d0] bg-white px-4.5 py-3 text-[13px] font-semibold text-[#617e4d] transition-colors enabled:hover:bg-[#f2f7ea] max-sm:gap-2 max-sm:px-3 max-sm:text-xs" href="#project">О проекте <span aria-hidden="true">↓</span></a></div>
-          </div>
-          <aside className={s.identity} aria-label="Наша команда">
-            <div className={s.cardTop}><span>ТРИ УЧАСТНИКА · ОДНА ИДЕЯ</span><Icon name="code" size={24} /></div>
-            <div className={s.monogram} aria-hidden="true">3<span>.</span></div>
-            <strong>Ерасыл · Абзал · Ерсұлтан</strong><span className={s.handle}>Команда CodeProof</span>
-            <div className={s.cardBottom}><span>ПРОЕКТ</span><b>CodeProof</b></div>
-          </aside>
-        </section>
-        <section id="project" className={s.project} aria-labelledby="project-heading">
-          <div><span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">ПРОЕКТ, НАД КОТОРЫМ МЫ РАБОТАЕМ</span><h2 id="project-heading">Написать код.<br />Понять. Объяснить.</h2><p>CodeProof помогает студентам готовиться к защите программного кода с помощью ИИ. Идея проста: тренироваться на своей работе и учиться объяснять, почему она работает.</p><a href="https://github.com/AbaD3v/AbaD3v-AIU" className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-3.5 rounded-lg border border-transparent bg-[#28573e] px-4.5 py-3 text-[13px] font-semibold text-[#f4f9ec] transition-colors enabled:hover:bg-[#3d704b] max-sm:gap-2 max-sm:px-3 max-sm:text-xs">Репозиторий проекта <span aria-hidden="true">↗</span></a></div>
-          <div className={s.scenario}><span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">ОБУЧЕНИЕ В ДИАЛОГЕ</span><ul><li><b>Код всегда перед глазами</b><p>Редактируешь программу, выделяешь строки и применяешь предложенные изменения.</p></li><li><b>Обсуждение рядом с редактором</b><p>Задаёшь вопросы, уточняешь объяснения и разбираешь свои решения.</p></li><li><b>Практика в удобный момент</b><p>Отвечаешь в отдельной карточке и возвращаешься к диалогу, когда нужна подсказка.</p></li></ul><small>Сейчас доступны локальные учебные профили и подготовленные примеры. Полноценный ИИ появится после подключения сервера.</small></div>
-        </section>
-        <section id="team" className={s.section} aria-labelledby="team-heading">
-          <div className={s.sectionHeading}><span className="mb-4 block text-[10px] font-semibold tracking-[1.8px] text-[#718768] max-md:text-[9px]">КОМАНДА</span><h2 id="team-heading">Знакомься, это мы.</h2></div>
-          <div className={s.team}>
-            <article><span className={s.avatar} aria-hidden="true">Е</span><span className={s.badge}>ФРОНТЕНД</span><h3>Ерасыл</h3><span className={s.fullName}>Куанышбек Ерасыл</span><p>Отвечает за дизайн и интерфейс: страницы на React и Next.js, формы, экраны тренировок и удобство на телефонах.</p><a href="https://github.com/Smylorx">@Smylorx <span aria-hidden="true">↗</span></a></article>
-            <article><span className={s.avatar} aria-hidden="true">А</span><span className={s.badge}>БЭКЕНД</span><h3>Абзал</h3><span className={s.fullName}>Маметжан Абзал</span><p>Отвечает за серверную часть: API, базу данных, авторизацию, интеграцию с ИИ и сохранение результатов тренировок.</p><a href="https://github.com/AbaD3v">@AbaD3v <span aria-hidden="true">↗</span></a></article>
-            <article><span className={s.avatar} aria-hidden="true">Е</span><span className={s.badge}>UI/UX-ДИЗАЙН</span><h3>Ерсұлтан</h3><span className={s.fullName}>Кәрғұл Ерсұлтан</span><p>Проектирует сценарии, прототипы и макеты экранов. Отвечает за визуальный стиль, адаптивный дизайн и удобство интерфейса.</p><a href="https://github.com/ersultankargul07-alt">@ersultankargul07-alt <span aria-hidden="true">↗</span></a></article>
-          </div>
-        </section>
-        <section className={s.stack} aria-labelledby="stack-heading"><h2 id="stack-heading">Стек проекта по README</h2><ul>{["Next.js", "React", "JavaScript", "Tailwind CSS", "CSS Modules", "PostgreSQL", "Prisma", "API языковой модели"].map(technology => <li key={technology}>{technology}</li>)}</ul></section>
-        <footer className="mt-10 flex items-center justify-between gap-5 border-t border-[#dfe7d7] py-7.5 text-sm font-semibold text-[#5d774b] [&>span>span]:text-[#91ad71] [&_small]:ml-4 [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-[#718465] [&>span:last-child]:text-[11px] [&>span:last-child]:font-normal [&>span:last-child]:text-[#788a6c] max-md:items-start max-md:[&_small]:mt-2 max-md:[&_small]:ml-0 max-md:[&_small]:block max-md:[&_small]:leading-[1.7] max-md:[&>span:last-child]:max-w-25 max-md:[&>span:last-child]:text-right max-md:[&>span:last-child]:leading-[1.7]"><span>CodeProof<span>.</span><small>Учись объяснять свой код.</small></span><Link href="/">Вернуться к приложению ↗</Link></footer>
-      </main>
+    <div className="page about-page">
+      <span className="eyebrow">CODEPROOF · SQL ПРАКТИКУМ</span>
+      <h1>
+        Знание начинается
+        <br />с работающего запроса<span>.</span>
+      </h1>
+      <p className="about-lead">
+        CodeProof помогает освоить SQL на связанных задачах одного
+        интернет-магазина. Изучай таблицы, пиши запросы и проверяй, работает ли
+        решение на разных данных.
+      </p>
+      <Link className="button button-primary" href="/">
+        Перейти к практике
+        <ArrowRight size={17} />
+      </Link>
+      <div className="about-features">
+        <article>
+          <Database size={25} />
+          <h2>Настоящая база</h2>
+          <p>
+            Пять связанных таблиц SQLite. Запросы действительно выполняются и
+            возвращают строки данных.
+          </p>
+        </article>
+        <article>
+          <CheckCheck size={25} />
+          <h2>Проверка по результату</h2>
+          <p>
+            Каждое решение проверяется на трёх наборах данных. Разные правильные
+            способы решения принимаются.
+          </p>
+        </article>
+        <article>
+          <ShieldCheck size={25} />
+          <h2>В своём темпе</h2>
+          <p>
+            Все задания открыты. Подсказки, теория и разборы рядом с редактором.
+            Прогресс сохраняется в браузере.
+          </p>
+        </article>
+      </div>
+      <section className="about-section">
+        <div>
+          <span className="eyebrow">КАК УСТРОЕН ПРАКТИКУМ</span>
+          <h2>
+            Пять модулей.
+            <br />
+            Одна цель — самостоятельность.
+          </h2>
+        </div>
+        <div>
+          <p>
+            Начинаем с SELECT и WHERE, затем переходим к сортировке,
+            соединениям, группировкам и задачам аналитика. В конце — отчёт по
+            продажам и аудит платежей.
+          </p>
+          <p>
+            Наборы данных и проверки входят в приложение. ИИ, внешние API и
+            сервер для учебных запросов не нужны. Сохранения локальные: для
+            переноса между устройствами доступны экспорт и импорт.
+          </p>
+          <p>
+            Это учебная среда, а не экзаменационная система: задания и эталоны
+            находятся в клиентском приложении, а прогресс можно редактировать на
+            своём устройстве.
+          </p>
+        </div>
+      </section>
+      <section className="team-section">
+        <span className="eyebrow">КОМАНДА CODEPROOF</span>
+        <h2>Три участника. Общая работа.</h2>
+        <div>
+          {[
+            {
+              name: "Куанышбек Ерасыл",
+              role: "Фронтенд",
+              handle: "Smylorx",
+              initial: "Е",
+            },
+            {
+              name: "Маметжан Абзал",
+              role: "Разработка",
+              handle: "AbaD3v",
+              initial: "А",
+            },
+            {
+              name: "Кәрғұл Ерсұлтан",
+              role: "UI/UX-дизайн",
+              handle: "ersultankargul07-alt",
+              initial: "Е",
+            },
+          ].map((member) => (
+            <article key={member.handle}>
+              <span className="team-avatar">{member.initial}</span>
+              <small>{member.role}</small>
+              <h3>{member.name}</h3>
+              <a
+                href={"https://github.com/" + member.handle}
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+                <ArrowUpRight size={14} />
+              </a>
+            </article>
+          ))}
+        </div>
+      </section>
+      <footer className="page-footer">
+        <span>
+          <Code2 size={16} />
+          Next.js · React · TypeScript · SQLite
+        </span>
+        <a
+          href="https://github.com/AbaD3v/AbaD3v-AIU"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Исходный код
+          <ArrowUpRight size={14} />
+        </a>
+      </footer>
     </div>
   );
 }

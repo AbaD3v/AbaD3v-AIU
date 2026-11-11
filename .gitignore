@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated from sql.js and app/lib/sql/sql-worker.ts before dev/build
+/public/sql/

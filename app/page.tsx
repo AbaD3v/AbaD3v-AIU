@@ -1,5 +1,4 @@
-import CodeWorkspace from "./components/code-workspace";
-
+import Catalog from "./components/sql/catalog";
 export default function Home() {
-  return <CodeWorkspace />;
+  return <Catalog />;
 }
