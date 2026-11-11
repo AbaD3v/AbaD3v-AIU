@@ -45,6 +45,7 @@ import {
 import { emptyProgress, getNextTask } from "@/app/lib/sql/progress";
 import { DataTable, DatabaseBadge, Modal, downloadText } from "./ui";
 import RestoreQuery from "./restore-query";
+import { useQuizQuestions } from "@/app/lib/sql/quiz";
 
 const Editor = dynamic(() => import("./editor"), {
   ssr: false,
@@ -57,6 +58,7 @@ const Editor = dynamic(() => import("./editor"), {
 });
 
 export default function Workspace({ taskId }: { taskId: string }) {
+  const quizQuestions = useQuizQuestions(taskId);
   const task = getTask(taskId)!;
   const index = tasks.findIndex((item) => item.id === taskId);
   const currentModule = modules[task.module - 1];
@@ -270,6 +272,11 @@ export default function Workspace({ taskId }: { taskId: string }) {
           </p>
         </div>
         <div className="task-pager">
+          {quizQuestions.length > 0 && (
+            <Link className="button button-secondary" href={`/quiz/?task=${encodeURIComponent(taskId)}`}>
+              Пройти тест
+            </Link>
+          )}
           <button
             className="text-button"
             disabled={!!busy}
