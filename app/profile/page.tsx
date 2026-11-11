@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { useAccounts } from "@/app/lib/accounts/store";
 import {
   ArrowRight,
   Award,
@@ -33,6 +34,7 @@ import {
 } from "@/app/components/sql/ui";
 
 export default function ProfilePage() {
+  const { active } = useAccounts();
   const state = useStudy();
   const stats = getStats(state);
   const [modal, setModal] = useState<"reset" | "import" | "undo" | null>(null);
@@ -201,9 +203,16 @@ export default function ProfilePage() {
         <div>
           <h2>Учебный профиль</h2>
           <p>
-            Прогресс хранится только в этом браузере. Экспортируй его для
-            переноса на другое устройство.
+            {active
+              ? "Прогресс этого аккаунта хранится отдельно в данном браузере."
+              : "Гостевой прогресс хранится отдельно от аккаунтов в этом браузере."}{" "}
+            Экспортируй его для переноса на другое устройство.
           </p>
+          {!active && (
+            <Link href="/account/" className="text-link">
+              Вход и регистрация <ArrowRight size={14} />
+            </Link>
+          )}
           <label className="profile-name-label">
             Как к тебе обращаться
             <input

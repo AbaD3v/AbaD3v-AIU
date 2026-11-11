@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -13,12 +13,15 @@ import {
   Layers3,
   Menu,
   NotebookPen,
+  ShieldCheck,
   Terminal,
+  UserRound,
   X,
 } from "lucide-react";
 import { useStudy } from "@/app/lib/sql/store";
 import { getStats } from "@/app/lib/sql/progress";
 import { tasks } from "@/app/lib/sql/course";
+import { useAccounts } from "@/app/lib/accounts/store";
 
 const links = [
   { href: "/", label: "Практикум", icon: Layers3 },
@@ -30,11 +33,15 @@ const tools = [
   { href: "/history/", label: "История запросов", icon: History },
   { href: "/notes/", label: "Мои заметки", icon: NotebookPen },
 ];
+const adminLink = { href: "/admin/", label: "Админ-панель", icon: ShieldCheck };
+const accountLink = { href: "/account/", label: "Аккаунт", icon: UserRound };
 
 export default function SqlShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { active } = useAccounts();
   const state = useStudy();
   const stats = getStats(state);
+  const displayName = active || state.name !== "Студент" ? state.name : "Гость";
   const [mobileOpen, setMobileOpen] = useState(false);
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -78,7 +85,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
       menuButton.current?.focus();
     };
   }, [mobileOpen]);
-  const current = [...links, ...tools].find((link) =>
+  const current = [...links, ...tools, adminLink, accountLink].find((link) =>
     link.href === "/"
       ? pathname === "/" || pathname.startsWith("/practice")
       : pathname.startsWith(link.href.replace(/\/$/, "")),
@@ -135,6 +142,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
           {links.map(navItem)}
           <span className="nav-label secondary">ИНСТРУМЕНТЫ</span>
           {tools.map(navItem)}
+          {active?.role === "admin" && navItem(adminLink)}
         </nav>
         <div className="sidebar-bottom">
           <div className="sidebar-progress">
@@ -163,15 +171,25 @@ export default function SqlShell({ children }: { children: ReactNode }) {
           </Link>
           <Link
             className="profile-link"
-            href="/profile/"
+            href="/account/"
             onClick={() => setMobileOpen(false)}
           >
             <span className="avatar">
-              {state.name.slice(0, 1).toUpperCase()}
+              {active ? (
+                displayName.slice(0, 1).toUpperCase()
+              ) : (
+                <UserRound size={16} />
+              )}
             </span>
             <span>
-              <strong>{state.name}</strong>
-              <small>Учебный профиль</small>
+              <strong>{displayName}</strong>
+              <small>
+                {active?.role === "admin"
+                  ? "Администратор"
+                  : active
+                    ? "Студент"
+                    : "Вход и регистрация"}
+              </small>
             </span>
             <ChevronRight size={16} />
           </Link>
@@ -201,7 +219,10 @@ export default function SqlShell({ children }: { children: ReactNode }) {
                 ? "Сохранение недоступно"
                 : "Прогресс в этом браузере"}
             </span>
-            <span className="sql-pill">SQL</span>
+            <Link href="/account/" className="topbar-account">
+              <UserRound size={15} />
+              {active ? "Аккаунт" : "Войти"}
+            </Link>
           </div>
         </header>
         {state.storageIssue && (
@@ -211,7 +232,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
           </div>
         )}
         <main id="main-content" tabIndex={-1}>
-          {children}
+          <Fragment key={active?.id ?? "guest"}>{children}</Fragment>
         </main>
       </div>
     </div>

@@ -34,6 +34,7 @@ import { SqlClient } from "@/app/lib/sql/client";
 import type { QueryResult, GradeResult } from "@/app/lib/sql/engine";
 import {
   useStudy,
+  getStudyScope,
   saveDraft,
   addAttempt,
   revealHint,
@@ -119,6 +120,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
   const execute = async (action: "run" | "check") => {
     if (busyRef.current || !ready || !code.trim()) return;
     const currentRequest = ++requestId.current;
+    const scope = getStudyScope();
     busyRef.current = true;
     setBusy(action);
     setError("");
@@ -130,7 +132,12 @@ export default function Workspace({ taskId }: { taskId: string }) {
         action === "check"
           ? await client.grade(taskId, code)
           : await client.run(code);
-      if (!alive.current || currentRequest !== requestId.current) return;
+      if (
+        !alive.current ||
+        currentRequest !== requestId.current ||
+        scope !== getStudyScope()
+      )
+        return;
       const checked = action === "check" ? (response as GradeResult) : null;
       const output = checked ? checked.result : (response as QueryResult);
       setResult(output);
@@ -144,7 +151,12 @@ export default function Workspace({ taskId }: { taskId: string }) {
         elapsed: output.elapsed,
       });
     } catch (error) {
-      if (!alive.current || currentRequest !== requestId.current) return;
+      if (
+        !alive.current ||
+        currentRequest !== requestId.current ||
+        scope !== getStudyScope()
+      )
+        return;
       const message =
         error instanceof Error ? error.message : "Не удалось выполнить запрос.";
       setError(message);

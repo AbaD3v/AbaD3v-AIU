@@ -1,5 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
+import { getAccounts, subscribeAccounts } from "../accounts/store";
 import {
   emptyStudy,
   emptyProgress,
@@ -13,18 +14,44 @@ import {
 } from "./progress";
 
 let state: StudyState = emptyStudy;
-let initialized = false;
+let loadedKey: string | undefined;
+let unsubscribeAccounts: (() => void) | undefined;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
 
-function readStorage() {
+function storageKey(id?: string) {
+  return id ? `${STORAGE_KEY}.account.${id}` : STORAGE_KEY;
+}
+
+export function getStudyScope() {
+  return storageKey(getAccounts().active?.id);
+}
+
+function readStudy(key: string, name?: string) {
+  const fallback = name ? { ...emptyStudy, name } : emptyStudy;
+  const raw = window.localStorage.getItem(key);
+  return raw === null ? fallback : parseStudy(raw);
+}
+
+export function readStudentStudy(id: string) {
+  const accounts = getAccounts();
+  const student = accounts.students.find((account) => account.id === id);
+  if (accounts.active?.role !== "admin" || !student) return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) state = parseStudy(raw);
-    else state = emptyStudy;
+    return readStudy(storageKey(id), student.name);
+  } catch {
+    return null;
+  }
+}
+
+function readStorage(key: string) {
+  const previous = key === loadedKey ? state : emptyStudy;
+  loadedKey = key;
+  try {
+    state = readStudy(key, getAccounts().active?.name);
   } catch {
     state = {
-      ...state,
+      ...previous,
       storageIssue:
         "Не удалось прочитать сохранения. Работа продолжится в этой вкладке. Экспортируйте прогресс, чтобы не потерять его.",
     };
@@ -32,25 +59,36 @@ function readStorage() {
 }
 
 function snapshot() {
-  if (!initialized && typeof window !== "undefined") {
-    readStorage();
-    initialized = true;
+  if (typeof window !== "undefined") {
+    const key = getStudyScope();
+    if (loadedKey !== key) readStorage(key);
   }
   return state;
 }
 
+function onStorage(event: StorageEvent) {
+  const key = getStudyScope();
+  if (event.key === key || event.key === null) {
+    readStorage(key);
+    emit();
+  }
+}
+
 function subscribe(listener: () => void) {
-  listeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY || event.key === null) {
-      readStorage();
+  if (!listeners.size) {
+    unsubscribeAccounts = subscribeAccounts(() => {
+      snapshot();
       emit();
-    }
-  };
-  window.addEventListener("storage", onStorage);
+    });
+    window.addEventListener("storage", onStorage);
+  }
+  listeners.add(listener);
   return () => {
     listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
+    if (!listeners.size) {
+      unsubscribeAccounts?.();
+      window.removeEventListener("storage", onStorage);
+    }
   };
 }
 
@@ -64,7 +102,7 @@ export function updateStudy(update: (current: StudyState) => StudyState) {
   state = next;
   try {
     state = { ...state, storageIssue: null };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(getStudyScope(), JSON.stringify(state));
   } catch {
     state = {
       ...state,
