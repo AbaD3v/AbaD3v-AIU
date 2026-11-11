@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Search, ShieldCheck, UsersRound } from "lucide-react";
 import { Modal, PageHeading } from "@/app/components/sql/ui";
+import QuizEditor from "@/app/components/sql/quiz-editor";
 import {
   setStudentBlocked,
   useAccounts,
@@ -195,6 +196,7 @@ export default function AdminPage() {
           </p>
         )}
       </section>
+      <QuizEditor />
       {target && (
         <Modal
           title={target.blocked ? "Восстановить вход?" : "Приостановить вход?"}

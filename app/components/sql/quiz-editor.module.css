@@ -1,0 +1,39 @@
+.editor, .form, .question, .options, .field {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.field { gap: 6px; font-weight: 600; }
+.field input, .field textarea, .field select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+.field textarea { resize: vertical; }
+.editor input:focus-visible, .editor textarea:focus-visible, .editor select:focus-visible, .editor button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.question { padding: 18px; border: 1px solid var(--line); border-radius: 10px; }
+.question > legend, .options > legend { padding: 0 5px; font-weight: 700; }
+.options { border: 0; padding: 0; }
+.option { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.correct { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.correct input { accent-color: var(--green); width: 18px; height: 18px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.options > button, .remove { justify-self: start; }
+.remove { color: #9b362a; }
+.editor button:disabled { opacity: .45; cursor: not-allowed; }
+.empty { padding: 14px; border-radius: 8px; background: var(--soft); }
+.editor ul { padding-left: 20px; list-style: disc; }
+@media (max-width: 640px) {
+  .question { padding: 12px; }
+  .option { grid-template-columns: minmax(0, 1fr) auto; }
+  .correct { grid-column: 1 / -1; }
+}
