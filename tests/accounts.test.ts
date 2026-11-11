@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   getAccounts,
+  refreshAccounts,
   registerStudent,
   setupDemoAdmin,
   setStudentBlocked,
@@ -123,6 +124,50 @@ test("student progress stays separate and only the demo admin can suspend or res
     assert.equal(getStudyScope(), guestKey);
   } finally {
     unsubscribe();
+    Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+test("admin setup and sign-in work when the browser blocks access to sessionStorage", async () => {
+  const localStorage = memoryStorage();
+  const browser = Object.assign(new EventTarget(), { localStorage });
+  Object.defineProperty(browser, "sessionStorage", {
+    get() {
+      throw new DOMException("Blocked", "SecurityError");
+    },
+  });
+  Object.defineProperty(globalThis, "window", {
+    value: browser,
+    configurable: true,
+  });
+  try {
+    refreshAccounts();
+    assert.equal(getAccounts().error, "");
+    assert.equal(getAccounts().hasAdmin, false);
+    const admin = {
+      name: "Демо администратор",
+      login: "admin",
+      password: "admin-demo-only",
+    };
+    await setupDemoAdmin(admin);
+    assert.equal(getAccounts().hasAdmin, true);
+    assert.equal(await signIn(admin.login, admin.password), "admin");
+    assert.equal(getAccounts().active?.role, "admin");
+    assert.equal(getAccounts().temporarySession, true);
+    signOut();
+    assert.equal(getAccounts().active, null);
+
+    const key = "codeproof.accounts.v1";
+    const backup = localStorage.getItem(key)!;
+    localStorage.setItem(key, "{invalid");
+    refreshAccounts();
+    assert.match(getAccounts().error, /сохранённый список аккаунтов/);
+    assert.equal(localStorage.getItem(key), "{invalid");
+    localStorage.setItem(key, backup);
+    refreshAccounts();
+    assert.equal(getAccounts().error, "");
+    assert.equal(getAccounts().hasAdmin, true);
+  } finally {
     Reflect.deleteProperty(globalThis, "window");
   }
 });

@@ -6,6 +6,7 @@ import { ArrowRight, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/app/components/sql/ui";
 import {
   registerStudent,
+  refreshAccounts,
   setupDemoAdmin,
   signIn,
   signOut,
@@ -36,7 +37,7 @@ export default function AccountPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || accounts.error) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -118,6 +119,11 @@ export default function AccountPage() {
           {error && (
             <p className="account-error" role="alert">
               {error}
+            </p>
+          )}
+          {accounts.temporarySession && (
+            <p className="account-help">
+              Вход действует до обновления страницы.
             </p>
           )}
         </section>
@@ -209,6 +215,18 @@ export default function AccountPage() {
                   {error || accounts.error}
                 </p>
               )}
+              {accounts.error && (
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    refreshAccounts();
+                  }}
+                >
+                  Проверить хранилище снова
+                </button>
+              )}
               {notice && (
                 <p className="notice-banner" role="status">
                   {notice}
@@ -244,10 +262,10 @@ export default function AccountPage() {
               <strong>Администратор</strong> видит прогресс студентов и
               управляет их входом.
             </p>
-            {!accounts.hasAdmin && !accounts.error && !setup && (
+            {!accounts.hasAdmin && !setup && (
               <button
                 className="button button-secondary"
-                disabled={busy}
+                disabled={busy || !!accounts.error}
                 onClick={() => {
                   switchMode("setup");
                   setName("");
@@ -256,6 +274,9 @@ export default function AccountPage() {
               >
                 Настроить демо администратора
               </button>
+            )}
+            {accounts.temporarySession && (
+              <small>Вход действует до обновления страницы.</small>
             )}
             <small>
               Аккаунты работают локально для демонстрации ролей. На другом

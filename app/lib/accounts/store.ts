@@ -15,6 +15,7 @@ type AccountsState = {
   active: Account | null;
   students: Account[];
   hasAdmin: boolean;
+  temporarySession: boolean;
   error: string;
 };
 
@@ -26,10 +27,13 @@ const initial: AccountsState = {
   active: null,
   students: [],
   hasAdmin: false,
+  temporarySession: false,
   error: "",
 };
 const listeners = new Set<() => void>();
 let state = initial;
+let sessionId: string | null = null;
+let temporarySession = false;
 
 function validAccount(value: unknown): value is SavedAccount {
   if (!value || typeof value !== "object") return false;
@@ -52,11 +56,25 @@ function validAccount(value: unknown): value is SavedAccount {
 }
 
 function readAccounts(): SavedAccount[] {
-  const raw = window.localStorage.getItem(accountsKey);
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(accountsKey);
+  } catch {
+    throw new Error(
+      "Браузер не даёт прочитать аккаунты. Откройте сайт в обычной вкладке и разрешите сохранение данных сайта.",
+    );
+  }
   if (raw === null) return [];
-  const data: unknown = JSON.parse(raw);
+  const invalidRegistry =
+    "Не удалось прочитать сохранённый список аккаунтов. Для демонстрации можно открыть сайт в другом профиле браузера.";
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(invalidRegistry);
+  }
   if (!Array.isArray(data) || !data.every(validAccount)) {
-    throw new Error("Данные аккаунтов повреждены.");
+    throw new Error(invalidRegistry);
   }
   return data;
 }
@@ -71,10 +89,32 @@ function publicAccount({
   return { id, name, login, role, blocked };
 }
 
+function readSession() {
+  if (!temporarySession) {
+    try {
+      sessionId = window.sessionStorage.getItem(sessionKey);
+    } catch {
+      temporarySession = true;
+    }
+  }
+  return sessionId;
+}
+
+function saveSession(id: string | null) {
+  sessionId = id;
+  if (temporarySession) return;
+  try {
+    if (id) window.sessionStorage.setItem(sessionKey, id);
+    else window.sessionStorage.removeItem(sessionKey);
+  } catch {
+    temporarySession = true;
+  }
+}
+
 function activeAccount(accounts: SavedAccount[]) {
-  const id = window.sessionStorage.getItem(sessionKey);
+  const id = readSession();
   const account = accounts.find((item) => item.id === id && !item.blocked);
-  if (id && !account) window.sessionStorage.removeItem(sessionKey);
+  if (id && !account) saveSession(null);
   return account;
 }
 
@@ -90,18 +130,22 @@ function refresh() {
           ? accounts.filter((a) => a.role === "student").map(publicAccount)
           : [],
       hasAdmin: accounts.some((a) => a.role === "admin"),
+      temporarySession,
       error: "",
     };
-  } catch {
+  } catch (error) {
     state = {
       ...initial,
       ready: true,
-      error: "Хранилище аккаунтов недоступно. Проверьте настройки браузера.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Не удалось загрузить аккаунты.",
     };
   }
 }
 
-function publish() {
+export function refreshAccounts() {
   refresh();
   listeners.forEach((listener) => listener());
 }
@@ -112,7 +156,7 @@ function onStorage(event: StorageEvent) {
     event.key === sessionKey ||
     event.key === null
   )
-    publish();
+    refreshAccounts();
 }
 
 export function subscribeAccounts(listener: () => void) {
@@ -166,7 +210,7 @@ function persist(accounts: SavedAccount[]) {
   } catch {
     throw new Error("Не удалось сохранить аккаунты в браузере.");
   }
-  publish();
+  refreshAccounts();
 }
 
 async function createAccount(
@@ -241,18 +285,14 @@ export async function signIn(login: string, password: string) {
   if (!fresh || fresh.hash !== account.hash) throw new Error(invalid);
   if (fresh.blocked)
     throw new Error("Вход для этого студента приостановлен администратором.");
-  try {
-    window.sessionStorage.setItem(sessionKey, fresh.id);
-  } catch {
-    throw new Error("Не удалось сохранить вход в этой вкладке.");
-  }
-  publish();
+  saveSession(fresh.id);
+  refreshAccounts();
   return fresh.role;
 }
 
 export function signOut() {
-  window.sessionStorage.removeItem(sessionKey);
-  publish();
+  saveSession(null);
+  refreshAccounts();
 }
 
 export function setStudentBlocked(id: string, blocked: boolean) {
