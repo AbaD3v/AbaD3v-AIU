@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -36,6 +36,48 @@ export default function SqlShell({ children }: { children: ReactNode }) {
   const state = useStudy();
   const stats = getStats(state);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const bodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusable = () =>
+      Array.from(
+        sidebar.current?.querySelectorAll<HTMLElement>(
+          "a[href], button:not([disabled])",
+        ) ?? [],
+      );
+    focusable()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileOpen(false);
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0];
+      const last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    const onResize = () => {
+      if (window.innerWidth > 850) setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+      menuButton.current?.focus();
+    };
+  }, [mobileOpen]);
   const current = [...links, ...tools].find((link) =>
     link.href === "/"
       ? pathname === "/" || pathname.startsWith("/practice")
@@ -62,7 +104,14 @@ export default function SqlShell({ children }: { children: ReactNode }) {
       <a className="skip-link" href="#main-content">
         К содержимому
       </a>
-      <aside className={"sidebar " + (mobileOpen ? "mobile-open" : "")}>
+      <aside
+        ref={sidebar}
+        id="navigation"
+        role={mobileOpen ? "dialog" : undefined}
+        aria-modal={mobileOpen || undefined}
+        aria-label="Навигация"
+        className={"sidebar " + (mobileOpen ? "mobile-open" : "")}
+      >
         <div className="sidebar-brand">
           <Link href="/" className="brand" onClick={() => setMobileOpen(false)}>
             <span className="brand-symbol">
@@ -101,7 +150,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
             <div className="progress-track">
               <span style={{ width: stats.percent + "%" }} />
             </div>
-            <Link href="/profile/">
+            <Link href="/profile/" onClick={() => setMobileOpen(false)}>
               Посмотреть прогресс <ArrowUpRight size={14} />
             </Link>
           </div>
@@ -128,14 +177,16 @@ export default function SqlShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
       </aside>
-      <div className="main-area">
+      <div className="main-area" inert={mobileOpen || undefined}>
         <header className="topbar">
           <div className="breadcrumbs">
             <button
+              ref={menuButton}
               className="icon-button mobile-only"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Открыть меню"
               aria-expanded={mobileOpen}
+              aria-controls="navigation"
             >
               <Menu size={21} />
             </button>

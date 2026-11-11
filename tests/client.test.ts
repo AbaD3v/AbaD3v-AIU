@@ -63,3 +63,40 @@ test("worker initialization survives mount-cleanup-remount and recovers from a c
     globalThis.Worker = original;
   }
 });
+
+test("cancelling a query rejects it and a later query runs in a fresh worker", async () => {
+  const original = globalThis.Worker;
+  globalThis.Worker = WorkerMock as unknown as typeof Worker;
+  const client = new SqlClient();
+  try {
+    const init = client.init();
+    const oldWorker = WorkerMock.workers.at(-1)!;
+    oldWorker.answer(true);
+    await init;
+    const slowQuery = client.run(
+      "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n) SELECT sum(x) FROM n;",
+    );
+    const cancelled = assert.rejects(slowQuery, /Выполнение отменено/);
+    await Promise.resolve();
+    client.destroy();
+    await cancelled;
+    assert.equal(oldWorker.terminated, true);
+    const recovery = client.run("SELECT 42;");
+    const freshWorker = WorkerMock.workers.at(-1)!;
+    assert.notEqual(freshWorker, oldWorker);
+    oldWorker.answer({ columns: ["bad"], rows: [[0]] });
+    freshWorker.answer(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    const result = {
+      columns: ["42"],
+      rows: [[42]],
+      elapsed: 1,
+      truncated: false,
+    };
+    freshWorker.answer(result);
+    assert.deepEqual(await recovery, result);
+  } finally {
+    client.destroy();
+    globalThis.Worker = original;
+  }
+});

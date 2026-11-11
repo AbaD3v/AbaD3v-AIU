@@ -15,9 +15,13 @@ import {
   Table2,
   Terminal,
 } from "lucide-react";
-import { modules, tasks, taskHref, getTask } from "@/app/lib/sql/course";
+import { modules, tasks, taskHref } from "@/app/lib/sql/course";
 import { useStudy } from "@/app/lib/sql/store";
-import { getStats } from "@/app/lib/sql/progress";
+import {
+  getStats,
+  getContinueTask,
+  isTaskStarted,
+} from "@/app/lib/sql/progress";
 import { TaskLink } from "./ui";
 
 export default function Catalog() {
@@ -26,12 +30,8 @@ export default function Catalog() {
   const [search, setSearch] = useState("");
   const [moduleId, setModuleId] = useState(0);
   const [status, setStatus] = useState("all");
-  const active = getTask(state.activeTaskId);
-  const nextTask =
-    active && !state.progress[active.id]?.solvedAt
-      ? active
-      : (tasks.find((task) => !state.progress[task.id]?.solvedAt) ?? tasks[0]);
-  const started = stats.runs > 0 || Object.keys(state.drafts).length > 0;
+  const nextTask = getContinueTask(state);
+  const started = tasks.some((task) => isTaskStarted(state, task.id));
   const filtered = tasks.filter((task) => {
     const progress = state.progress[task.id];
     const matches = (
@@ -48,8 +48,10 @@ export default function Catalog() {
       (!moduleId || task.module === moduleId) &&
       (status === "all" ||
         (status === "done" && !!progress?.solvedAt) ||
-        (status === "started" && !!progress?.runs && !progress.solvedAt) ||
-        (status === "new" && !progress?.runs))
+        (status === "started" &&
+          isTaskStarted(state, task.id) &&
+          !progress?.solvedAt) ||
+        (status === "new" && !isTaskStarted(state, task.id)))
     );
   });
   return (
@@ -84,7 +86,9 @@ export default function Catalog() {
                 : "БОЛЬШИЕ ВЫВОДЫ НАЧИНАЮТСЯ С МАЛЕНЬКОГО ЗАПРОСА"}
           </span>
           <h2>
-            {started ? (
+            {!nextTask ? (
+              "Все 15 задач решены."
+            ) : started ? (
               nextTask.title
             ) : (
               <>
@@ -98,8 +102,15 @@ export default function Catalog() {
             <br />
             Пятнадцать задач, которые решает аналитик.
           </p>
-          <Link href={taskHref(nextTask.id)} className="button button-lime">
-            {started ? "Продолжить практику" : "Начать практику"}
+          <Link
+            href={nextTask ? taskHref(nextTask.id) : "/profile/"}
+            className="button button-lime"
+          >
+            {!nextTask
+              ? "Посмотреть результаты"
+              : started
+                ? "Продолжить практику"
+                : "Начать практику"}
             <ArrowRight size={17} />
           </Link>
           <span className="hero-footnote">
@@ -316,6 +327,7 @@ export default function Catalog() {
                             task={task}
                             index={tasks.indexOf(task)}
                             progress={state.progress[task.id]}
+                            started={isTaskStarted(state, task.id)}
                           />
                         ))}
                     </div>

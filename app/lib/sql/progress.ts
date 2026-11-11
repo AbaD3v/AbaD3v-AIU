@@ -1,6 +1,7 @@
 import { getTask, tasks } from "./course";
 
 export type TaskProgress = {
+  startedAt?: string | null;
   attempts: number;
   runs: number;
   hints: number;
@@ -30,7 +31,9 @@ export type StudyState = {
   storageIssue: string | null;
 };
 export const STORAGE_KEY = "codeproof.sql.v1";
+export const MAX_BACKUP_BYTES = 16_000_000;
 export const emptyProgress: TaskProgress = {
+  startedAt: null,
   attempts: 0,
   runs: 0,
   hints: 0,
@@ -66,8 +69,15 @@ function validDate(value: unknown): value is string {
 }
 
 export function parseStudy(raw: string): StudyState {
-  if (raw.length > 4_000_000) throw new Error("Файл слишком большой.");
-  const value: unknown = JSON.parse(raw);
+  if (raw.length > MAX_BACKUP_BYTES) throw new Error("Файл слишком большой.");
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      "Не удалось прочитать JSON. Выберите файл, скачанный через «Экспорт прогресса».",
+    );
+  }
   if (
     !object(value) ||
     value.version !== 1 ||
@@ -85,6 +95,7 @@ export function parseStudy(raw: string): StudyState {
     const item = value.progress[task.id];
     if (object(item)) {
       progress[task.id] = {
+        startedAt: validDate(item.startedAt) ? item.startedAt : null,
         attempts: count(item.attempts),
         runs: count(item.runs),
         hints: Math.min(3, count(item.hints)),
@@ -185,4 +196,70 @@ export function getStats(state: StudyState) {
     runs,
     percent: Math.round((completed / tasks.length) * 100),
   };
+}
+
+export function isTaskStarted(state: StudyState, id: string): boolean {
+  const progress = state.progress[id];
+  return !!(
+    progress?.startedAt ||
+    progress?.runs ||
+    progress?.hints ||
+    progress?.solutionViewed ||
+    progress?.solvedAt ||
+    (state.drafts[id]?.trim() && state.drafts[id] !== getTask(id)?.starter)
+  );
+}
+
+export function visitTaskState(
+  state: StudyState,
+  id: string,
+  date: string,
+): StudyState {
+  if (!getTask(id)) return state;
+  const current = state.progress[id] ?? emptyProgress;
+  if (state.activeTaskId === id && current.startedAt) return state;
+  return {
+    ...state,
+    activeTaskId: id,
+    progress: {
+      ...state.progress,
+      [id]: { ...current, startedAt: current.startedAt ?? date },
+    },
+  };
+}
+
+export function restartTaskState(
+  state: StudyState,
+  id: string,
+  date: string,
+): StudyState {
+  const task = getTask(id);
+  if (!task) return state;
+  return {
+    ...state,
+    activeTaskId: id,
+    drafts: { ...state.drafts, [id]: task.starter },
+    progress: {
+      ...state.progress,
+      [id]: { ...emptyProgress, startedAt: date },
+    },
+  };
+}
+
+export function getContinueTask(state: StudyState) {
+  const active = getTask(state.activeTaskId);
+  return active && !state.progress[active.id]?.solvedAt
+    ? active
+    : tasks.find((task) => !state.progress[task.id]?.solvedAt);
+}
+
+export function getNextTask(state: StudyState, currentId: string) {
+  const index = tasks.findIndex((task) => task.id === currentId);
+  return [...tasks.slice(index + 1), ...tasks.slice(0, index)].find(
+    (task) => !state.progress[task.id]?.solvedAt,
+  );
+}
+
+export function serializeStudy(state: StudyState): string {
+  return JSON.stringify({ ...state, storageIssue: null }, null, 2);
 }

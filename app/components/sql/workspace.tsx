@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowUpRight,
   BookOpen,
   Check,
   CheckCheck,
@@ -23,6 +22,7 @@ import {
   LoaderCircle,
   Play,
   RotateCcw,
+  Square,
   Table2,
   Terminal,
   X,
@@ -38,9 +38,12 @@ import {
   addAttempt,
   revealHint,
   revealSolution,
+  visitTask,
+  restartTask,
 } from "@/app/lib/sql/store";
-import { emptyProgress } from "@/app/lib/sql/progress";
+import { emptyProgress, getNextTask } from "@/app/lib/sql/progress";
 import { DataTable, DatabaseBadge, Modal, downloadText } from "./ui";
+import RestoreQuery from "./restore-query";
 
 const Editor = dynamic(() => import("./editor"), {
   ssr: false,
@@ -69,15 +72,23 @@ export default function Workspace({ taskId }: { taskId: string }) {
   const [busy, setBusy] = useState<"run" | "check" | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [modal, setModal] = useState<"reset" | "solution" | null>(null);
+  const [modal, setModal] = useState<
+    "reset" | "solution" | "restart" | "replace-solution" | null
+  >(null);
+  const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [feedbackCode, setFeedbackCode] = useState("");
   const client = useMemo(() => new SqlClient(), []);
   const busyRef = useRef(false);
   const alive = useRef(true);
+  const requestId = useRef(0);
+  const nextTask = getNextTask(state, taskId);
   const history = state.history
     .filter((entry) => entry.taskId === taskId)
     .slice(0, 10);
+  useEffect(() => {
+    visitTask(taskId);
+  }, [taskId]);
   useEffect(() => {
     alive.current = true;
     let current = true;
@@ -92,6 +103,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
     return () => {
       current = false;
       alive.current = false;
+      requestId.current++;
       client.destroy();
     };
   }, [client]);
@@ -105,10 +117,12 @@ export default function Workspace({ taskId }: { taskId: string }) {
     }
   };
   const execute = async (action: "run" | "check") => {
-    if (busyRef.current || !ready) return;
+    if (busyRef.current || !ready || !code.trim()) return;
+    const currentRequest = ++requestId.current;
     busyRef.current = true;
     setBusy(action);
     setError("");
+    setNotice("");
     setFeedbackCode(code);
     setBottomTab(action === "check" ? "check" : "result");
     try {
@@ -116,7 +130,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
         action === "check"
           ? await client.grade(taskId, code)
           : await client.run(code);
-      if (!alive.current) return;
+      if (!alive.current || currentRequest !== requestId.current) return;
       const checked = action === "check" ? (response as GradeResult) : null;
       const output = checked ? checked.result : (response as QueryResult);
       setResult(output);
@@ -130,7 +144,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
         elapsed: output.elapsed,
       });
     } catch (error) {
-      if (!alive.current) return;
+      if (!alive.current || currentRequest !== requestId.current) return;
       const message =
         error instanceof Error ? error.message : "Не удалось выполнить запрос.";
       setError(message);
@@ -146,8 +160,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
         error: message,
       });
     } finally {
-      busyRef.current = false;
-      if (alive.current) setBusy(null);
+      if (alive.current && currentRequest === requestId.current) {
+        busyRef.current = false;
+        setBusy(null);
+      }
     }
   };
   const onRun = () => {
@@ -156,14 +172,40 @@ export default function Workspace({ taskId }: { taskId: string }) {
   const onCheck = () => {
     void execute("check");
   };
+  function stop() {
+    requestId.current++;
+    client.destroy();
+    busyRef.current = false;
+    setBusy(null);
+    clearFeedback();
+    setNotice(
+      "Запрос остановлен. Можно изменить его и запустить снова. Попытка не засчитана.",
+    );
+  }
+  function clearFeedback() {
+    setResult(null);
+    setGrade(null);
+    setError("");
+    setFeedbackCode("");
+    setBottomTab("result");
+  }
+  function downloadQuery() {
+    try {
+      downloadText(taskId + ".sql", code);
+      setNotice("Скачивание SQL-запроса запрошено.");
+    } catch {
+      setNotice("Не удалось скачать запрос. Скопируйте текст из редактора.");
+    }
+  }
   const stale = !!feedbackCode && feedbackCode !== code;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
+      setNotice("Запрос скопирован.");
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      setError(
+      setNotice(
         "Не удалось скопировать запрос. Выделите текст в редакторе и скопируйте вручную.",
       );
     }
@@ -172,14 +214,19 @@ export default function Workspace({ taskId }: { taskId: string }) {
     if (!result) return;
     const cell = (value: unknown) =>
       '"' + String(value ?? "").replace(/"/g, '""') + '"';
-    downloadText(
-      taskId + ".csv",
-      "\ufeff" +
-        [result.columns, ...result.rows]
-          .map((row) => row.map(cell).join(","))
-          .join("\r\n"),
-      "text/csv;charset=utf-8",
-    );
+    try {
+      downloadText(
+        taskId + ".csv",
+        "\ufeff" +
+          [result.columns, ...result.rows]
+            .map((row) => row.map(cell).join(","))
+            .join("\r\n"),
+        "text/csv;charset=utf-8",
+      );
+      setNotice("Скачивание результата CSV запрошено.");
+    } catch {
+      setNotice("Не удалось скачать CSV. Попробуйте ещё раз.");
+    }
   }
   return (
     <div className="workspace-page">
@@ -211,6 +258,14 @@ export default function Workspace({ taskId }: { taskId: string }) {
           </p>
         </div>
         <div className="task-pager">
+          <button
+            className="text-button"
+            disabled={!!busy}
+            onClick={() => setModal("restart")}
+          >
+            <RotateCcw size={14} />
+            Пройти заново
+          </button>
           <span>
             {index + 1} <small>/ 15</small>
           </span>
@@ -426,6 +481,15 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 <span className="editor-dialect">SQLite</span>
                 <button
                   className="dark-icon-button"
+                  onClick={downloadQuery}
+                  disabled={!code.trim()}
+                  aria-label="Скачать SQL-запрос"
+                  title="Скачать SQL-запрос"
+                >
+                  <Download size={15} />
+                </button>
+                <button
+                  className="dark-icon-button"
                   onClick={copy}
                   aria-label="Скопировать запрос"
                   title="Скопировать запрос"
@@ -445,7 +509,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
             </div>
             <Editor
               value={code}
-              onChange={(value) => saveDraft(taskId, value)}
+              onChange={(value) => {
+                if (value.length > 20000)
+                  setNotice(
+                    "Запрос ограничен 20 000 символами. Сохранены первые 20 000 — сократите запрос перед запуском.",
+                  );
+                saveDraft(taskId, value);
+              }}
               onRun={onRun}
               onCheck={onCheck}
             />
@@ -455,9 +525,15 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 <span>запустить</span>
               </span>
               <div className="editor-actions">
+                {busy && (
+                  <button className="button button-run" onClick={stop}>
+                    <Square size={14} />
+                    Остановить
+                  </button>
+                )}
                 <button
                   className="button button-run"
-                  disabled={!!busy || !ready}
+                  disabled={!!busy || !ready || !code.trim()}
                   onClick={onRun}
                 >
                   {busy === "run" ? (
@@ -469,7 +545,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 </button>
                 <button
                   className="button button-lime"
-                  disabled={!!busy || !ready}
+                  disabled={!!busy || !ready || !code.trim()}
                   onClick={onCheck}
                 >
                   {busy === "check" ? (
@@ -482,6 +558,11 @@ export default function Workspace({ taskId }: { taskId: string }) {
               </div>
             </div>
           </div>
+          {notice && (
+            <p className="notice-banner" role="status">
+              {notice}
+            </p>
+          )}
           {loadError && (
             <div className="error-banner" role="alert">
               <X size={17} />
@@ -530,6 +611,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 <button
                   className="icon-button"
                   onClick={exportCsv}
+                  disabled={!!busy}
                   aria-label="Скачать результат CSV"
                   title="Скачать CSV"
                 >
@@ -632,7 +714,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
                         </h3>
                         <p>
                           {grade.passed
-                            ? "Запрос прошёл все три набора данных. Прогресс сохранён."
+                            ? "Запрос прошёл все три набора данных. " +
+                              (state.storageIssue
+                                ? "Прогресс доступен в этой вкладке — экспортируйте его перед выходом."
+                                : "Прогресс сохранён.")
                             : "Посмотрите, какая проверка не прошла, и уточните запрос."}
                         </p>
                       </div>
@@ -666,10 +751,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
                             ? "Самостоятельное решение — без подсказок."
                             : "Решение с помощью — можно вернуться и потренироваться ещё."}
                         </p>
-                        {index < tasks.length - 1 ? (
+                        {nextTask ? (
                           <Link
                             className="button button-primary"
-                            href={taskHref(tasks[index + 1].id)}
+                            href={taskHref(nextTask.id)}
                           >
                             Следующая задача
                             <ArrowRight size={16} />
@@ -729,13 +814,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                               minute: "2-digit",
                             })}
                           </time>
-                          <button
-                            className="text-button"
-                            onClick={() => saveDraft(taskId, entry.sql)}
-                          >
-                            В редактор
-                            <ArrowUpRight size={13} />
-                          </button>
+                          <RestoreQuery taskId={taskId} sql={entry.sql} />
                         </div>
                         <pre>{entry.sql}</pre>
                         {entry.error && <p>{entry.error}</p>}
@@ -763,6 +842,71 @@ export default function Workspace({ taskId }: { taskId: string }) {
           </div>
         </section>
       </div>
+      {modal === "restart" && (
+        <Modal title="Пройти эту задачу заново?" onClose={() => setModal(null)}>
+          <p>
+            Начнём новую попытку: сбросим результат этой задачи, подсказки и
+            черновик. История запросов, заметки и остальные задания останутся.
+            Текущий запрос можно скачать перед сбросом.
+          </p>
+          <div className="modal-actions">
+            <button
+              className="button button-secondary"
+              onClick={() => setModal(null)}
+            >
+              Отмена
+            </button>
+            <button className="button button-secondary" onClick={downloadQuery}>
+              Скачать запрос
+            </button>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                restartTask(taskId);
+                clearFeedback();
+                setLeftTab("task");
+                setNotice(
+                  "Задача начата заново. История предыдущих попыток сохранена.",
+                );
+                setModal(null);
+              }}
+            >
+              Начать заново
+            </button>
+          </div>
+        </Modal>
+      )}
+      {modal === "replace-solution" && (
+        <Modal
+          title="Заменить черновик решением?"
+          onClose={() => setModal(null)}
+        >
+          <p>
+            Твой текущий запрос будет заменён готовым решением. Сначала его
+            можно скачать.
+          </p>
+          <div className="modal-actions">
+            <button
+              className="button button-secondary"
+              onClick={() => setModal("solution")}
+            >
+              Назад
+            </button>
+            <button className="button button-secondary" onClick={downloadQuery}>
+              Скачать черновик
+            </button>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                saveDraft(taskId, task.solution);
+                setModal(null);
+              }}
+            >
+              Заменить запрос
+            </button>
+          </div>
+        </Modal>
+      )}
       {modal === "reset" && (
         <Modal
           title="Восстановить начальный запрос?"
@@ -773,6 +917,9 @@ export default function Workspace({ taskId }: { taskId: string }) {
             останутся в истории.
           </p>
           <div className="modal-actions">
+            <button className="button button-secondary" onClick={downloadQuery}>
+              Скачать черновик
+            </button>
             <button
               className="button button-secondary"
               onClick={() => setModal(null)}
@@ -814,6 +961,14 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 <button
                   className="button button-primary"
                   onClick={() => {
+                    if (
+                      code.trim() &&
+                      code !== task.starter &&
+                      code !== task.solution
+                    ) {
+                      setModal("replace-solution");
+                      return;
+                    }
                     saveDraft(taskId, task.solution);
                     setModal(null);
                   }}

@@ -1641,6 +1641,7 @@ select {
   color: #99ae8d;
 }
 .editor-actions {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 8px;

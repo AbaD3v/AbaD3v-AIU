@@ -1,12 +1,18 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X, Check, Circle, ArrowUpRight, Database, Table2 } from "lucide-react";
 import Link from "next/link";
 import type { Cell } from "@/app/lib/sql/schema";
 import { taskHref, type Task } from "@/app/lib/sql/course";
 import type { TaskProgress } from "@/app/lib/sql/progress";
 
-export function Status({ progress }: { progress?: TaskProgress }) {
+export function Status({
+  progress,
+  started,
+}: {
+  progress?: TaskProgress;
+  started?: boolean;
+}) {
   if (progress?.solvedAt)
     return (
       <span className="status status-done">
@@ -14,7 +20,13 @@ export function Status({ progress }: { progress?: TaskProgress }) {
         Решено
       </span>
     );
-  if (progress?.runs)
+  if (
+    started ||
+    progress?.startedAt ||
+    progress?.runs ||
+    progress?.hints ||
+    progress?.solutionViewed
+  )
     return (
       <span className="status status-started">
         <span className="status-dot" />В процессе
@@ -32,10 +44,12 @@ export function TaskLink({
   task,
   index,
   progress,
+  started,
 }: {
   task: Task;
   index: number;
   progress?: TaskProgress;
+  started?: boolean;
 }) {
   return (
     <Link className="task-row" href={taskHref(task.id)}>
@@ -66,7 +80,7 @@ export function TaskLink({
         <span>{task.difficulty}</span>
       </span>
       <span className="task-time">{task.minutes} мин</span>
-      <Status progress={progress} />
+      <Status progress={progress} started={started} />
       <ArrowUpRight size={16} className="row-arrow" />
     </Link>
   );
@@ -94,11 +108,13 @@ export function DataTable({
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr>
-            <th className="row-index" aria-label="Номер строки">
+            <th scope="col" className="row-index" aria-label="Номер строки">
               #
             </th>
             {columns.map((column, i) => (
-              <th key={i}>{column}</th>
+              <th key={i} scope="col">
+                {column}
+              </th>
             ))}
           </tr>
         </thead>
@@ -145,6 +161,7 @@ export function Modal({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const headingId = useId();
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
@@ -159,12 +176,20 @@ export function Modal({
         onClose();
       }}
       onClick={(event) => {
-        if (event.target === ref.current) onClose();
+        if (event.target !== ref.current) return;
+        const box = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < box.left ||
+          event.clientX > box.right ||
+          event.clientY < box.top ||
+          event.clientY > box.bottom
+        )
+          onClose();
       }}
-      aria-labelledby="modal-heading"
+      aria-labelledby={headingId}
     >
       <div className="modal-heading">
-        <h2 id="modal-heading">{title}</h2>
+        <h2 id={headingId}>{title}</h2>
         <button className="icon-button" onClick={onClose} aria-label="Закрыть">
           <X size={20} />
         </button>

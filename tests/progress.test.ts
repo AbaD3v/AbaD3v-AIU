@@ -6,9 +6,17 @@ import {
   getStats,
   parseStudy,
   recordAttempt,
+  visitTaskState,
+  restartTaskState,
+  isTaskStarted,
+  getContinueTask,
+  getNextTask,
+  serializeStudy,
+  MAX_BACKUP_BYTES,
   type HistoryEntry,
   type StudyState,
 } from "../app/lib/sql/progress";
+import { tasks } from "../app/lib/sql/course";
 
 const entry: HistoryEntry = {
   id: "test",
@@ -76,7 +84,13 @@ test("progress, notes and drafts round-trip; history remains bounded", () => {
 });
 
 test("imports reject unrelated data and sanitize malformed or excessive fields", () => {
-  for (const raw of ["{", "[]", "{}", '{"version":2}', "x".repeat(4_000_001)])
+  for (const raw of [
+    "{",
+    "[]",
+    "{}",
+    '{"version":2}',
+    "x".repeat(MAX_BACKUP_BYTES + 1),
+  ])
     assert.throws(() => parseStudy(raw));
   const restored = parseStudy(
     JSON.stringify({
@@ -113,4 +127,99 @@ test("imports reject unrelated data and sanitize malformed or excessive fields",
   assert.equal(restored.progress["first-query"].hints, 3);
   assert.equal(getStats(restored).independent, 0);
   assert.equal(restored.history.length, 1);
+});
+
+test("visiting a task resumes it and draft-only and assisted tasks count as started", () => {
+  assert.equal(isTaskStarted(emptyStudy, "first-query"), false);
+  const visited = visitTaskState(emptyStudy, "top-prices", entry.date);
+  assert.equal(getContinueTask(visited)?.id, "top-prices");
+  assert.equal(isTaskStarted(visited, "top-prices"), true);
+  assert.equal(visitTaskState(visited, "top-prices", entry.date), visited);
+  assert.equal(
+    isTaskStarted(
+      { ...emptyStudy, drafts: { "first-query": entry.sql } },
+      "first-query",
+    ),
+    true,
+  );
+  assert.equal(
+    isTaskStarted(
+      { ...emptyStudy, drafts: { "first-query": tasks[0].starter } },
+      "first-query",
+    ),
+    false,
+  );
+  assert.equal(
+    isTaskStarted(
+      {
+        ...emptyStudy,
+        progress: { "first-query": { ...emptyProgress, hints: 1 } },
+      },
+      "first-query",
+    ),
+    true,
+  );
+  const restored = parseStudy(serializeStudy(visited));
+  assert.equal(getContinueTask(restored)?.id, "top-prices");
+});
+
+test("continuation wraps to unfinished tasks and ends when all tasks are solved", () => {
+  const completed = tasks.reduce(
+    (state, task) => recordAttempt(state, { ...entry, taskId: task.id }),
+    emptyStudy,
+  );
+  assert.equal(getContinueTask(completed), undefined);
+  assert.equal(getNextTask(completed, tasks.at(-1)!.id), undefined);
+  const repeat = restartTaskState(completed, "premium-products", entry.date);
+  assert.equal(getNextTask(repeat, tasks.at(-1)!.id)?.id, "premium-products");
+  assert.equal(getContinueTask(repeat)?.id, "premium-products");
+});
+
+test("restarting one task clears assistance and completion, preserves other work and allows independent completion", () => {
+  const assisted = recordAttempt(
+    {
+      ...emptyStudy,
+      notes: "Мой конспект",
+      drafts: { "first-query": entry.sql, "top-prices": "SELECT 2;" },
+      progress: {
+        "first-query": { ...emptyProgress, hints: 2, solutionViewed: true },
+      },
+    },
+    entry,
+  );
+  const withOther = recordAttempt(assisted, { ...entry, taskId: "top-prices" });
+  const repeated = restartTaskState(withOther, "first-query", entry.date);
+  assert.equal(repeated.progress["first-query"].solvedAt, null);
+  assert.equal(repeated.progress["first-query"].hints, 0);
+  assert.equal(repeated.progress["first-query"].solutionViewed, false);
+  assert.equal(repeated.drafts["first-query"], tasks[0].starter);
+  assert.equal(repeated.drafts["top-prices"], "SELECT 2;");
+  assert.equal(
+    repeated.progress["top-prices"],
+    withOther.progress["top-prices"],
+  );
+  assert.equal(repeated.history, withOther.history);
+  assert.equal(repeated.notes, "Мой конспект");
+  assert.equal(
+    recordAttempt(repeated, entry).progress["first-query"].independent,
+    true,
+  );
+});
+
+test("backups omit storage errors and remain importable with long non-ASCII queries", () => {
+  const state = {
+    ...emptyStudy,
+    storageIssue: "Unavailable",
+    history: Array.from({ length: 100 }, (_, i) => ({
+      ...entry,
+      id: String(i),
+      sql: "Ж".repeat(20000),
+    })),
+  };
+  const exported = serializeStudy(state);
+  assert.ok(Buffer.byteLength(exported) > 4_000_000);
+  assert.ok(Buffer.byteLength(exported) < MAX_BACKUP_BYTES);
+  assert.equal(parseStudy(exported).storageIssue, null);
+  assert.equal(parseStudy(exported).history.length, 100);
+  assert.throws(() => parseStudy("{broken"), /Не удалось прочитать JSON/);
 });

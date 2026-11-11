@@ -172,6 +172,7 @@ export default function DatabasePage() {
                 onClick={() => {
                   setSelected(item.name);
                   setTab("data");
+                  setQuery("");
                 }}
               >
                 <div>

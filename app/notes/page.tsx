@@ -1,9 +1,11 @@
 "use client";
+import { useState } from "react";
 import { Download, NotebookPen } from "lucide-react";
 import { useStudy, updateStudy } from "@/app/lib/sql/store";
 import { PageHeading, downloadText } from "@/app/components/sql/ui";
 export default function NotesPage() {
   const state = useStudy();
+  const [notice, setNotice] = useState("");
   return (
     <div className="page">
       <PageHeading
@@ -14,12 +16,26 @@ export default function NotesPage() {
         <button
           className="button button-secondary"
           disabled={!state.notes.trim()}
-          onClick={() => downloadText("codeproof-sql-notes.txt", state.notes)}
+          onClick={() => {
+            try {
+              downloadText("codeproof-sql-notes.txt", state.notes);
+              setNotice("Скачивание заметок запрошено.");
+            } catch {
+              setNotice(
+                "Не удалось скачать заметки. Выделите текст и скопируйте вручную.",
+              );
+            }
+          }}
         >
           <Download size={15} />
           Скачать заметки
         </button>
       </PageHeading>
+      {notice && (
+        <p className="notice-banner" role="status">
+          {notice}
+        </p>
+      )}
       <div className="notes-card">
         <div>
           <NotebookPen size={17} />

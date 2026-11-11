@@ -14,7 +14,16 @@ import {
   Upload,
 } from "lucide-react";
 import { useStudy, updateStudy, replaceStudy } from "@/app/lib/sql/store";
-import { getStats, emptyStudy, parseStudy } from "@/app/lib/sql/progress";
+import {
+  getStats,
+  emptyStudy,
+  parseStudy,
+  serializeStudy,
+  getContinueTask,
+  isTaskStarted,
+  MAX_BACKUP_BYTES,
+  type StudyState,
+} from "@/app/lib/sql/progress";
 import { modules, tasks, taskHref } from "@/app/lib/sql/course";
 import {
   Modal,
@@ -26,19 +35,39 @@ import {
 export default function ProfilePage() {
   const state = useStudy();
   const stats = getStats(state);
-  const [modal, setModal] = useState<"reset" | "import" | null>(null);
+  const [modal, setModal] = useState<"reset" | "import" | "undo" | null>(null);
   const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [backup, setBackup] = useState<StudyState | null>(null);
   const [imported, setImported] = useState<ReturnType<
     typeof parseStudy
   > | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const nextTask =
-    tasks.find((task) => !state.progress[task.id]?.solvedAt) ?? tasks[0];
+  const nextTask = getContinueTask(state);
+  function exportProgress() {
+    try {
+      downloadText(
+        "codeproof-sql-progress.json",
+        serializeStudy(state),
+        "application/json",
+      );
+      setNotice("Скачивание файла прогресса запрошено.");
+    } catch {
+      setNotice("Не удалось скачать файл. Попробуйте ещё раз.");
+    }
+  }
+  function closeModal() {
+    setModal(null);
+    setImported(null);
+  }
   async function loadFile(file?: File) {
     if (!file) return;
+    setLoading(true);
+    setImported(null);
+    setNotice("");
     try {
-      if (file.size > 4_000_000)
-        throw new Error("Размер файла не должен превышать 4 МБ.");
+      if (file.size > MAX_BACKUP_BYTES)
+        throw new Error("Размер файла не должен превышать 16 МБ.");
       setImported(parseStudy(await file.text()));
       setModal("import");
       setNotice("");
@@ -46,8 +75,10 @@ export default function ProfilePage() {
       setNotice(
         error instanceof Error ? error.message : "Не удалось прочитать файл.",
       );
+    } finally {
+      setLoading(false);
+      if (input.current) input.current.value = "";
     }
-    if (input.current) input.current.value = "";
   }
   return (
     <div className="page progress-page">
@@ -56,8 +87,11 @@ export default function ProfilePage() {
         title="Каждый запрос — шаг вперёд."
         description="Здесь виден реальный результат: решённые задачи, самостоятельные попытки и освоенные темы."
       >
-        <Link className="button button-primary" href={taskHref(nextTask.id)}>
-          К практике
+        <Link
+          className="button button-primary"
+          href={nextTask ? taskHref(nextTask.id) : "/"}
+        >
+          {nextTask ? "К практике" : "Повторить задания"}
           <ArrowRight size={16} />
         </Link>
       </PageHeading>
@@ -88,7 +122,7 @@ export default function ProfilePage() {
             {stats.completed === tasks.length
               ? "Можно вернуться к сложным темам и попробовать другой способ решения."
               : stats.completed
-                ? "Следующий шаг — " + nextTask.title.toLowerCase() + "."
+                ? "Следующий шаг — " + nextTask?.title.toLowerCase() + "."
                 : "Выбери задачу, запусти запрос и проверь решение."}
           </p>
         </div>
@@ -153,7 +187,10 @@ export default function ProfilePage() {
               {moduleTasks.map((task) => (
                 <Link key={task.id} href={taskHref(task.id)}>
                   <span>{task.title}</span>
-                  <Status progress={state.progress[task.id]} />
+                  <Status
+                    progress={state.progress[task.id]}
+                    started={isTaskStarted(state, task.id)}
+                  />
                 </Link>
               ))}
             </article>
@@ -186,26 +223,17 @@ export default function ProfilePage() {
           </label>
         </div>
         <div className="settings-actions">
-          <button
-            className="button button-secondary"
-            onClick={() => {
-              downloadText(
-                "codeproof-sql-progress.json",
-                JSON.stringify(state, null, 2),
-                "application/json",
-              );
-              setNotice("Файл прогресса подготовлен для скачивания.");
-            }}
-          >
+          <button className="button button-secondary" onClick={exportProgress}>
             <Download size={16} />
             Экспорт прогресса
           </button>
           <button
             className="button button-secondary"
+            disabled={loading}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
-            Импорт прогресса
+            {loading ? "Читаем файл…" : "Импорт прогресса"}
           </button>
           <input
             ref={input}
@@ -215,7 +243,11 @@ export default function ProfilePage() {
             aria-label="Файл прогресса"
             onChange={(event) => loadFile(event.target.files?.[0])}
           />
-          <button className="danger-link" onClick={() => setModal("reset")}>
+          <button
+            className="danger-link"
+            disabled={loading}
+            onClick={() => setModal("reset")}
+          >
             <RotateCcw size={14} />
             Сбросить SQL-прогресс
           </button>
@@ -225,6 +257,36 @@ export default function ProfilePage() {
         <p className="notice-banner" role="status">
           {notice}
         </p>
+      )}
+      {backup && (
+        <button className="text-link" onClick={() => setModal("undo")}>
+          <RotateCcw size={14} />
+          Вернуть прогресс до последней замены
+        </button>
+      )}
+      {modal === "undo" && backup && (
+        <Modal title="Отменить последнюю замену?" onClose={closeModal}>
+          <p>
+            Вернём состояние до импорта или сброса. Изменения, сделанные после
+            него, будут заменены. Эта отмена доступна, пока открыта страница.
+          </p>
+          <div className="modal-actions">
+            <button className="button button-secondary" onClick={closeModal}>
+              Отмена
+            </button>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                replaceStudy(backup);
+                setBackup(null);
+                closeModal();
+                setNotice("Предыдущий прогресс возвращён.");
+              }}
+            >
+              Вернуть прогресс
+            </button>
+          </div>
+        </Modal>
       )}
       {modal === "reset" && (
         <Modal title="Начать практикум заново?" onClose={() => setModal(null)}>
@@ -236,6 +298,12 @@ export default function ProfilePage() {
           <div className="modal-actions">
             <button
               className="button button-secondary"
+              onClick={exportProgress}
+            >
+              Скачать копию
+            </button>
+            <button
+              className="button button-secondary"
               onClick={() => setModal(null)}
             >
               Отмена
@@ -243,6 +311,7 @@ export default function ProfilePage() {
             <button
               className="button button-danger"
               onClick={() => {
+                setBackup(state);
                 replaceStudy({ ...emptyStudy, name: state.name });
                 setModal(null);
                 setNotice("SQL-прогресс сброшен.");
@@ -254,10 +323,7 @@ export default function ProfilePage() {
         </Modal>
       )}
       {modal === "import" && imported && (
-        <Modal
-          title="Загрузить прогресс из файла?"
-          onClose={() => setModal(null)}
-        >
+        <Modal title="Загрузить прогресс из файла?" onClose={closeModal}>
           <p>
             В файле: {getStats(imported).completed} решённых задач. Текущие
             SQL-сохранения будут заменены. Перед заменой можно экспортировать
@@ -266,13 +332,17 @@ export default function ProfilePage() {
           <div className="modal-actions">
             <button
               className="button button-secondary"
-              onClick={() => setModal(null)}
+              onClick={exportProgress}
             >
+              Скачать копию
+            </button>
+            <button className="button button-secondary" onClick={closeModal}>
               Отмена
             </button>
             <button
               className="button button-primary"
               onClick={() => {
+                setBackup(state);
                 replaceStudy(imported);
                 setImported(null);
                 setModal(null);

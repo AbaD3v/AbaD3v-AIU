@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight, Check, History, Search, X } from "lucide-react";
-import { useStudy, saveDraft } from "@/app/lib/sql/store";
-import { getTask, taskHref } from "@/app/lib/sql/course";
+import { useStudy } from "@/app/lib/sql/store";
+import { getTask } from "@/app/lib/sql/course";
 import { PageHeading } from "@/app/components/sql/ui";
+import RestoreQuery from "@/app/components/sql/restore-query";
 
 export default function HistoryPage() {
   const state = useStudy();
@@ -67,14 +68,14 @@ export default function HistoryPage() {
                 <span>
                   {entry.rows} строк · {entry.elapsed} мс
                 </span>
-                <Link
-                  href={taskHref(entry.taskId)}
-                  onClick={() => saveDraft(entry.taskId, entry.sql)}
+                <RestoreQuery
+                  taskId={entry.taskId}
+                  sql={entry.sql}
+                  navigate
                   className="text-link"
                 >
                   Вернуть в редактор
-                  <ArrowUpRight size={15} />
-                </Link>
+                </RestoreQuery>
               </div>
             </article>
           ))}

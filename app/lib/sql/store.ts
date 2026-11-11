@@ -5,6 +5,8 @@ import {
   emptyProgress,
   parseStudy,
   recordAttempt,
+  visitTaskState,
+  restartTaskState,
   STORAGE_KEY,
   type StudyState,
   type HistoryEntry,
@@ -40,7 +42,7 @@ function snapshot() {
 function subscribe(listener: () => void) {
   listeners.add(listener);
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) {
+    if (event.key === STORAGE_KEY || event.key === null) {
       readStorage();
       emit();
     }
@@ -57,7 +59,9 @@ export function useStudy() {
 }
 
 export function updateStudy(update: (current: StudyState) => StudyState) {
-  state = update(snapshot());
+  const next = update(snapshot());
+  if (next === state) return;
+  state = next;
   try {
     state = { ...state, storageIssue: null };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -108,3 +112,11 @@ export const revealSolution = (id: string) =>
     },
   }));
 export const replaceStudy = (next: StudyState) => updateStudy(() => next);
+export const visitTask = (id: string) =>
+  updateStudy((current) =>
+    visitTaskState(current, id, new Date().toISOString()),
+  );
+export const restartTask = (id: string) =>
+  updateStudy((current) =>
+    restartTaskState(current, id, new Date().toISOString()),
+  );
