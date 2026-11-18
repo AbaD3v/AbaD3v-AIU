@@ -196,7 +196,7 @@ export default function AdminPage() {
           </p>
         )}
       </section>
-      <QuizEditor />
+      <QuizEditor key={active.id} adminId={active.id} />
       {target && (
         <Modal
           title={target.blocked ? "Восстановить вход?" : "Приостановить вход?"}
