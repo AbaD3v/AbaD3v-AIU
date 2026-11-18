@@ -1,0 +1,35 @@
+.entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.entry p {
+  flex: 1 1 220px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.entry .link {
+  min-height: 44px;
+}
+
+@media (max-width: 680px) {
+  .entry {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .entry p {
+    flex-basis: auto;
+  }
+}
