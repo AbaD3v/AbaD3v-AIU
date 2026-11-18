@@ -1,23 +1,25 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight, Check, History, Search, X } from "lucide-react";
 import { useAccounts } from "@/app/lib/accounts/store";
 import { getStudyScope, useStudy } from "@/app/lib/sql/store";
-import { getTask, tasks } from "@/app/lib/sql/course";
+import { tasks } from "@/app/lib/sql/course";
 import { PageHeading } from "@/app/components/sql/ui";
 import RestoreQuery from "@/app/components/sql/restore-query";
 import { actionOptions, defaultFilters, readFilters, resultOptions, saveFilters } from "./history-filters";
 import styles from "./history-filters.module.css";
 
 export default function HistoryPage() {
+  const name = useSiteNames();
   const { ready, error } = useAccounts();
   const storageKey = ready && !error ? `${getStudyScope()}.history-filters.v1` : null;
   return (
     <div className="page">
       <PageHeading
-        eyebrow="ТВОИ ПОПЫТКИ"
-        title="У каждого решения есть история."
+        eyebrow={name("history.eyebrow")}
+        title={name("history.heading")}
         description="Последние 100 запусков и проверок. Верни любой запрос в редактор и продолжи работу."
       />
       {ready ? (
@@ -30,14 +32,17 @@ export default function HistoryPage() {
 }
 
 function HistoryForScope({ storageKey }: { storageKey: string | null }) {
+  const name = useSiteNames();
   const state = useStudy();
   const [filters, setFilters] = useState(() => readFilters(storageKey));
   const query = filters.search.trim().toLowerCase();
+  const actionOption = actionOptions.find((option) => option.value === filters.action);
+  const resultOption = resultOptions.find((option) => option.value === filters.result);
   const chips = [
-    { key: "taskId", label: getTask(filters.taskId)?.title },
-    { key: "action", label: actionOptions.find((option) => option.value === filters.action)?.label },
-    { key: "result", label: resultOptions.find((option) => option.value === filters.result)?.label },
-    { key: "search", label: filters.search && `Поиск: «${filters.search}»` },
+    { key: "taskId", label: filters.taskId && name(`task.${filters.taskId}`) },
+    { key: "action", label: actionOption && name(actionOption.nameKey) },
+    { key: "result", label: resultOption && name(resultOption.nameKey) },
+    { key: "search", label: filters.search && `${name("history.searchChip")} «${filters.search}»` },
   ] as const;
   const entries = state.history.filter((entry) => {
     const result = entry.success ? "success" : "failure";
@@ -47,7 +52,7 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
     return (
       !query ||
       entry.sql.toLowerCase().includes(query) ||
-      getTask(entry.taskId)?.title.toLowerCase().includes(query)
+      name(`task.${entry.taskId}`).toLowerCase().includes(query)
     );
   });
 
@@ -69,58 +74,58 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
             type="search"
             value={filters.search}
             onChange={(event) => setFilter("search", event.target.value)}
-            placeholder="Поиск по запросу или заданию"
-            aria-label="Поиск в истории"
+            placeholder={name("history.searchPlaceholder")}
+            aria-label={name("history.search")}
           />
         </label>
         <label className={styles.field}>
-          Задание
+          {name("practice.task")}
           <select
             value={filters.taskId}
             onChange={(event) => setFilter("taskId", event.target.value)}
           >
-            <option value="">Все задания</option>
+            <option value="">{name("common.allTasks")}</option>
             {tasks.map((task) => (
               <option key={task.id} value={task.id}>
-                {task.title}
+                {name(`task.${task.id}`)}
               </option>
             ))}
           </select>
         </label>
         <label className={styles.field}>
-          Действие
+          {name("history.action")}
           <select
             value={filters.action}
             onChange={(event) => setFilter("action", event.target.value)}
           >
-            <option value="">Все попытки</option>
-            {actionOptions.map(({ value, label }) => (
-              <option key={value} value={value}>{label}</option>
+            <option value="">{name("history.allAttempts")}</option>
+            {actionOptions.map(({ value, nameKey }) => (
+              <option key={value} value={value}>{name(nameKey)}</option>
             ))}
           </select>
         </label>
         <label className={styles.field}>
-          Результат
+          {name("practice.resultTab")}
           <select
             value={filters.result}
             onChange={(event) => setFilter("result", event.target.value)}
           >
-            <option value="">Все результаты</option>
-            {resultOptions.map(({ value, label }) => (
-              <option key={value} value={value}>{label}</option>
+            <option value="">{name("history.allResults")}</option>
+            {resultOptions.map(({ value, nameKey }) => (
+              <option key={value} value={value}>{name(nameKey)}</option>
             ))}
           </select>
         </label>
       </div>
       <div className={styles.summary}>
-        <output>Найдено записей: {entries.length}</output>
+        <output>{name("history.total")} {entries.length}</output>
         <div className={styles.chips}>
           {chips.map(({ key, label }) => label && (
             <button
               key={key}
               type="button"
               className={styles.chip}
-              aria-label={key === "search" ? "Очистить поиск" : `Снять фильтр: ${label}`}
+              aria-label={key === "search" ? name("common.clearSearch") : `${name("history.removeFilter")} ${label}`}
               onClick={() => setFilter(key, "")}
             >
               <span>{label}</span>
@@ -134,7 +139,7 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
           disabled={!chips.some((chip) => chip.label)}
           onClick={() => updateFilters(defaultFilters)}
         >
-          Сбросить фильтры
+          {name("catalog.clearFilters")}
         </button>
       </div>
       {entries.length ? (
@@ -150,11 +155,11 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
                   {entry.success ? <Check size={14} /> : <X size={14} />}
                   {entry.action === "check"
                     ? entry.success
-                      ? "Решение верное"
-                      : "Проверка не пройдена"
+                      ? name("history.checkPassed")
+                      : name("history.checkFailed")
                     : entry.success
-                      ? "Запрос выполнен"
-                      : "Ошибка запроса"}
+                      ? name("common.querySuccess")
+                      : name("history.queryError")}
                 </span>
                 <time>
                   {new Date(entry.date).toLocaleString("ru-RU", {
@@ -165,7 +170,7 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
                   })}
                 </time>
               </div>
-              <h2>{getTask(entry.taskId)?.title}</h2>
+              <h2>{name(`task.${entry.taskId}`)}</h2>
               <pre className="code-snippet">{entry.sql}</pre>
               {entry.error && (
                 <p className="history-error-text">{entry.error}</p>
@@ -180,7 +185,7 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
                   navigate
                   className="text-link"
                 >
-                  Вернуть в редактор
+                  {name("history.restore")}
                 </RestoreQuery>
               </div>
             </article>
@@ -190,7 +195,7 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
         <div className="empty-state">
           <History size={35} />
           <h2>
-            {state.history.length ? "Попытки не найдены" : "Первый запрос ещё впереди"}
+            {state.history.length ? name("history.noMatches") : name("history.empty")}
           </h2>
           <p>
             {state.history.length
@@ -199,7 +204,7 @@ function HistoryForScope({ storageKey }: { storageKey: string | null }) {
           </p>
           {state.history.length === 0 && (
             <Link href="/" className="button button-primary">
-              Открыть практикум
+              {name("history.openPractice")}
               <ArrowUpRight size={16} />
             </Link>
           )}

@@ -1,4 +1,6 @@
 "use client";
+import { difficultyNames, checkNames } from "@/app/lib/site-names/registry";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -28,7 +30,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { tasks, getTask, modules, taskHref } from "@/app/lib/sql/course";
+import { tasks, getTask, taskHref } from "@/app/lib/sql/course";
 import { tables } from "@/app/lib/sql/schema";
 import { SqlClient } from "@/app/lib/sql/client";
 import type { QueryResult, GradeResult } from "@/app/lib/sql/engine";
@@ -59,10 +61,10 @@ const Editor = dynamic(() => import("./editor"), {
 });
 
 export default function Workspace({ taskId }: { taskId: string }) {
+  const name = useSiteNames();
   const quizQuestions = useQuizQuestions(taskId);
   const task = getTask(taskId)!;
   const index = tasks.findIndex((item) => item.id === taskId);
-  const currentModule = modules[task.module - 1];
   const state = useStudy();
   const progress = state.progress[taskId] ?? emptyProgress;
   const code = state.drafts[taskId] ?? task.starter;
@@ -249,27 +251,27 @@ export default function Workspace({ taskId }: { taskId: string }) {
         <div>
           <Link href="/" className="back-link">
             <ArrowLeft size={14} />
-            Все задания
+            {name("common.allTasks")}
           </Link>
           <div className="workspace-title-line">
             <span className="workspace-task-number">
               {String(index + 1).padStart(2, "0")}
             </span>
-            <h1>{task.title}</h1>
+            <h1>{name(`task.${task.id}`)}</h1>
             {progress.solvedAt && (
               <span className="solved-label">
                 <Check size={14} />
-                Решено
+                {name("common.solved")}
               </span>
             )}
           </div>
           <p>
-            {currentModule.title}
+            {name(`module.${task.module}`)}
             <span>·</span>
-            {task.difficulty}
+            {name(difficultyNames[task.difficulty])}
             <span>·</span>
             <Clock3 size={12} />
-            {task.minutes} мин
+            {task.minutes} {name("common.minutes")}
           </p>
         </div>
         <div className="task-pager">
@@ -279,7 +281,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             onClick={() => setModal("restart")}
           >
             <RotateCcw size={14} />
-            Пройти заново
+            {name("practice.restart")}
           </button>
           <span>
             {index + 1} <small>/ 15</small>
@@ -288,7 +290,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <Link
               className="icon-button"
               href={taskHref(tasks[index - 1].id)}
-              aria-label="Предыдущее задание"
+              aria-label={name("practice.previousTask")}
             >
               <ChevronLeft size={18} />
             </Link>
@@ -296,7 +298,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <button
               className="icon-button"
               disabled
-              aria-label="Предыдущее задание"
+              aria-label={name("practice.previousTask")}
             >
               <ChevronLeft size={18} />
             </button>
@@ -305,7 +307,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <Link
               className="icon-button"
               href={taskHref(tasks[index + 1].id)}
-              aria-label="Следующее задание"
+              aria-label={name("practice.nextTask")}
             >
               <ChevronRight size={18} />
             </Link>
@@ -313,7 +315,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <button
               className="icon-button"
               disabled
-              aria-label="Следующее задание"
+              aria-label={name("practice.nextTask")}
             >
               <ChevronRight size={18} />
             </button>
@@ -325,13 +327,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
           <div
             className="panel-tabs"
             role="tablist"
-            aria-label="Информация о задании"
+            aria-label={name("practice.info")}
           >
             {(
               [
-                { id: "task", label: "Задание" },
-                { id: "hints", label: "Подсказки" },
-                { id: "theory", label: "Теория" },
+                { id: "task", label: name("practice.task") },
+                { id: "hints", label: name("practice.hints") },
+                { id: "theory", label: name("practice.theory") },
               ] as const
             ).map((tab) => (
               <button
@@ -349,16 +351,16 @@ export default function Workspace({ taskId }: { taskId: string }) {
           <div className="task-panel-body">
             {leftTab === "task" && (
               <>
-                <span className="eyebrow">КОНТЕКСТ</span>
+                <span className="eyebrow">{name("practice.context")}</span>
                 <p className="task-description">{task.description}</p>
                 <div className="task-requirement">
                   <span>
                     <Zap size={15} />
-                    Что нужно сделать
+                    {name("practice.requirement")}
                   </span>
                   <p>{task.requirement}</p>
                 </div>
-                <h3 className="small-heading">Столбцы результата</h3>
+                <h3 className="small-heading">{name("practice.columns")}</h3>
                 <div className="column-chips">
                   {task.columns.map((column) => (
                     <code key={column}>{column}</code>
@@ -383,7 +385,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   }}
                 >
                   <Lightbulb size={17} />
-                  Нужна небольшая подсказка?
+                  {name("practice.askHint")}
                   <ArrowRight size={14} />
                 </button>
               </>
@@ -392,7 +394,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
               <>
                 <div className="panel-section-heading">
                   <Lightbulb size={19} />
-                  <h3>Немного направления</h3>
+                  <h3>{name("practice.hintsHeading")}</h3>
                 </div>
                 <p className="muted small">
                   Открывайте подсказки постепенно. Решение с помощью тоже
@@ -400,7 +402,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 </p>
                 {task.hints.slice(0, progress.hints).map((hint, i) => (
                   <div className="hint-card" key={i}>
-                    <span>ПОДСКАЗКА {i + 1}</span>
+                    <span>{name("practice.hint")} {i + 1}</span>
                     <p>{hint}</p>
                   </div>
                 ))}
@@ -411,8 +413,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   >
                     <Lightbulb size={16} />
                     {progress.hints
-                      ? "Следующая подсказка"
-                      : "Открыть первую подсказку"}
+                      ? name("practice.nextHint")
+                      : name("practice.firstHint")}
                   </button>
                 )}
                 <button
@@ -420,7 +422,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   onClick={() => setModal("solution")}
                 >
                   <Code2 size={15} />
-                  Посмотреть разбор решения
+                  {name("practice.showAnalysis")}
                 </button>
               </>
             )}
@@ -428,13 +430,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
               <>
                 <div className="panel-section-heading">
                   <BookOpen size={19} />
-                  <h3>Коротко о главном</h3>
+                  <h3>{name("practice.theoryHeading")}</h3>
                 </div>
                 <p className="theory-text">{task.theory}</p>
-                <h3 className="small-heading">Пример на других данных</h3>
+                <h3 className="small-heading">{name("practice.exampleHeading")}</h3>
                 <pre className="code-snippet">{task.example}</pre>
                 <Link className="text-link" href="/reference/">
-                  Полный справочник
+                  {name("practice.fullReference")}
                   <ArrowRight size={15} />
                 </Link>
               </>
@@ -444,7 +446,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <div className="schema-heading">
               <DatabaseBadge />
               <Link href="/database/">
-                Открыть базу <ArrowRight size={13} />
+                {name("practice.openDatabase")} <ArrowRight size={13} />
               </Link>
             </div>
             {tables.map((table) => (
@@ -484,7 +486,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             ))}
           </div>
         </aside>
-        <section className="query-area" aria-label="Редактор и результаты">
+        <section className="query-area" aria-label={name("practice.queryArea")}>
           <div className="editor-card">
             <div className="editor-toolbar">
               <span className="editor-file">
@@ -498,16 +500,16 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   className="dark-icon-button"
                   onClick={downloadQuery}
                   disabled={!code.trim()}
-                  aria-label="Скачать SQL-запрос"
-                  title="Скачать SQL-запрос"
+                  aria-label={name("practice.downloadSql")}
+                  title={name("practice.downloadSql")}
                 >
                   <Download size={15} />
                 </button>
                 <button
                   className="dark-icon-button"
                   onClick={copy}
-                  aria-label="Скопировать запрос"
-                  title="Скопировать запрос"
+                  aria-label={name("practice.copySql")}
+                  title={name("practice.copySql")}
                 >
                   {copied ? <Check size={15} /> : <Copy size={15} />}
                 </button>
@@ -515,8 +517,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   className="dark-icon-button"
                   onClick={() => setModal("reset")}
                   disabled={!!busy}
-                  aria-label="Восстановить начальный запрос"
-                  title="Восстановить начальный запрос"
+                  aria-label={name("practice.restoreSql")}
+                  title={name("practice.restoreSql")}
                 >
                   <RotateCcw size={15} />
                 </button>
@@ -537,13 +539,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <div className="editor-footer">
               <span className="keyboard-tip">
                 <kbd>Ctrl / ⌘</kbd> + <kbd>Enter</kbd>
-                <span>запустить</span>
+                <span>{name("practice.run")}</span>
               </span>
               <div className="editor-actions">
                 {busy && (
                   <button className="button button-run" onClick={stop}>
                     <Square size={14} />
-                    Остановить
+                    {name("practice.stop")}
                   </button>
                 )}
                 <button
@@ -556,7 +558,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   ) : (
                     <Play size={15} />
                   )}
-                  Запустить
+                  {name("practice.run")}
                 </button>
                 <button
                   className="button button-lime"
@@ -568,7 +570,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   ) : (
                     <CheckCheck size={17} />
                   )}
-                  Проверить решение
+                  {name("practice.check")}
                 </button>
               </div>
             </div>
@@ -582,7 +584,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <div className="error-banner" role="alert">
               <X size={17} />
               <span>{loadError}</span>
-              <button onClick={retry}>Повторить</button>
+              <button onClick={retry}>{name("practice.retry")}</button>
             </div>
           )}
           {!ready && !loadError && (
@@ -603,7 +605,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   className={`button button-secondary ${quizEntryStyles.link}`}
                   href={`/quiz/?task=${encodeURIComponent(taskId)}`}
                 >
-                  Закрепить тему
+                  {name("quiz.open")}
                   <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               )}
@@ -611,7 +613,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
           )}
           <div className="results-card">
             <div className="result-tabs">
-              <div role="tablist" aria-label="Результаты запроса">
+              <div role="tablist" aria-label={name("practice.results")}>
                 <button
                   role="tab"
                   aria-selected={bottomTab === "result"}
@@ -619,7 +621,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   onClick={() => setBottomTab("result")}
                 >
                   <Table2 size={15} />
-                  Результат{result && <span>{result.rows.length}</span>}
+                  {name("practice.resultTab")}{result && <span>{result.rows.length}</span>}
                 </button>
                 <button
                   role="tab"
@@ -628,7 +630,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   onClick={() => setBottomTab("check")}
                 >
                   <CheckCheck size={16} />
-                  Проверка{grade?.passed && <i className="status-dot" />}
+                  {name("practice.checkTab")}{grade?.passed && <i className="status-dot" />}
                 </button>
                 <button
                   role="tab"
@@ -637,7 +639,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   onClick={() => setBottomTab("history")}
                 >
                   <History size={15} />
-                  История
+                  {name("practice.historyTab")}
                 </button>
               </div>
               {result && bottomTab === "result" && (
@@ -645,8 +647,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   className="icon-button"
                   onClick={exportCsv}
                   disabled={!!busy}
-                  aria-label="Скачать результат CSV"
-                  title="Скачать CSV"
+                  aria-label={name("practice.downloadResult")}
+                  title={name("practice.downloadCsv")}
                 >
                   <Download size={15} />
                 </button>
@@ -674,13 +676,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     <X size={22} />
                   </span>
                   <div>
-                    <h3>Запрос требует внимания</h3>
+                    <h3>{name("practice.queryError")}</h3>
                     <p>{error}</p>
                     <button
                       className="text-link"
                       onClick={() => setLeftTab("theory")}
                     >
-                      Посмотреть теорию
+                      {name("practice.showTheory")}
                       <BookOpen size={14} />
                     </button>
                   </div>
@@ -695,7 +697,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     <div className="result-footer">
                       <span>
                         <Check size={13} />
-                        Запрос выполнен
+                        {name("common.querySuccess")}
                         {result.truncated
                           ? " · показаны первые 1 000 строк"
                           : ""}
@@ -711,9 +713,9 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     <span className="placeholder-icon">
                       <Terminal size={27} />
                     </span>
-                    <h3>Данные ждут твоего запроса</h3>
+                    <h3>{name("practice.emptyResult")}</h3>
                     <p>
-                      Напиши SQL и нажми «Запустить».
+                      Напиши SQL и нажми «{name("practice.run")}».
                       <br />
                       Результат появится здесь в виде таблицы.
                     </p>
@@ -742,8 +744,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
                       <div>
                         <h3>
                           {grade.passed
-                            ? "Отлично, решение работает!"
-                            : "Почти. Проверим детали."}
+                            ? name("practice.checkPassed")
+                            : name("practice.checkFailed")}
                         </h3>
                         <p>
                           {grade.passed
@@ -770,7 +772,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                             )}
                           </span>
                           <div>
-                            <strong>{check.label}</strong>
+                            <strong>{checkNames[i] ? name(checkNames[i]) : check.label}</strong>
                             <p>{check.message}</p>
                           </div>
                           <span>{i + 1}/3</span>
@@ -789,7 +791,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                             className="button button-primary"
                             href={taskHref(nextTask.id)}
                           >
-                            Следующая задача
+                            {name("practice.nextTaskAction")}
                             <ArrowRight size={16} />
                           </Link>
                         ) : (
@@ -797,7 +799,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                             className="button button-primary"
                             href="/profile/"
                           >
-                            Посмотреть результаты
+                            {name("common.viewResults")}
                             <ArrowRight size={16} />
                           </Link>
                         )}
@@ -809,9 +811,9 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     <span className="placeholder-icon">
                       <CheckCheck size={28} />
                     </span>
-                    <h3>Проверь, что решение универсально</h3>
+                    <h3>{name("practice.emptyCheck")}</h3>
                     <p>
-                      «Проверить решение» сравнит результат
+                      «{name("practice.check")}» сравнит результат
                       <br />
                       на учебной базе и двух дополнительных наборах.
                     </p>
@@ -839,7 +841,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                             ) : (
                               <X size={13} />
                             )}
-                            {entry.action === "run" ? "Запуск" : "Проверка"}
+                            {entry.action === "run" ? name("practice.historyRun") : name("practice.checkTab")}
                           </span>
                           <time>
                             {new Date(entry.date).toLocaleTimeString("ru-RU", {
@@ -857,7 +859,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 ) : (
                   <div className="result-placeholder">
                     <History size={28} />
-                    <h3>Здесь будет история попыток</h3>
+                    <h3>{name("practice.emptyHistory")}</h3>
                     <p>
                       После первого запуска сохраним запрос
                       <br />и результат его выполнения.
@@ -876,7 +878,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
         </section>
       </div>
       {modal === "restart" && (
-        <Modal title="Пройти эту задачу заново?" onClose={() => setModal(null)}>
+        <Modal title={name("practice.restartTitle")} onClose={() => setModal(null)}>
           <p>
             Начнём новую попытку: сбросим результат этой задачи, подсказки и
             черновик. История запросов, заметки и остальные задания останутся.
@@ -887,10 +889,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
               className="button button-secondary"
               onClick={() => setModal(null)}
             >
-              Отмена
+              {name("common.cancel")}
             </button>
             <button className="button button-secondary" onClick={downloadQuery}>
-              Скачать запрос
+              {name("practice.downloadQuery")}
             </button>
             <button
               className="button button-primary"
@@ -904,14 +906,14 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 setModal(null);
               }}
             >
-              Начать заново
+              {name("practice.restartAction")}
             </button>
           </div>
         </Modal>
       )}
       {modal === "replace-solution" && (
         <Modal
-          title="Заменить черновик решением?"
+          title={name("practice.replaceWithSolution")}
           onClose={() => setModal(null)}
         >
           <p>
@@ -923,10 +925,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
               className="button button-secondary"
               onClick={() => setModal("solution")}
             >
-              Назад
+              {name("common.back")}
             </button>
             <button className="button button-secondary" onClick={downloadQuery}>
-              Скачать черновик
+              {name("common.downloadDraft")}
             </button>
             <button
               className="button button-primary"
@@ -935,14 +937,14 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 setModal(null);
               }}
             >
-              Заменить запрос
+              {name("common.replaceQuery")}
             </button>
           </div>
         </Modal>
       )}
       {modal === "reset" && (
         <Modal
-          title="Восстановить начальный запрос?"
+          title={name("practice.restoreTitle")}
           onClose={() => setModal(null)}
         >
           <p>
@@ -951,13 +953,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
           </p>
           <div className="modal-actions">
             <button className="button button-secondary" onClick={downloadQuery}>
-              Скачать черновик
+              {name("common.downloadDraft")}
             </button>
             <button
               className="button button-secondary"
               onClick={() => setModal(null)}
             >
-              Отмена
+              {name("common.cancel")}
             </button>
             <button
               className="button button-primary"
@@ -966,7 +968,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 setModal(null);
               }}
             >
-              Восстановить
+              {name("common.restore")}
             </button>
           </div>
         </Modal>
@@ -975,8 +977,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
         <Modal
           title={
             progress.solutionViewed
-              ? "Разбор решения"
-              : "Открыть готовое решение?"
+              ? name("practice.solutionTitle")
+              : name("practice.solutionConfirm")
           }
           onClose={() => setModal(null)}
         >
@@ -989,7 +991,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   className="button button-secondary"
                   onClick={() => setModal(null)}
                 >
-                  Закрыть
+                  {name("common.close")}
                 </button>
                 <button
                   className="button button-primary"
@@ -1006,7 +1008,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     setModal(null);
                   }}
                 >
-                  Перенести в редактор
+                  {name("practice.useSolution")}
                   <ArrowRight size={15} />
                 </button>
               </div>
@@ -1023,13 +1025,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   className="button button-secondary"
                   onClick={() => setModal(null)}
                 >
-                  Попробую сам
+                  {name("practice.tryAlone")}
                 </button>
                 <button
                   className="button button-primary"
                   onClick={() => revealSolution(taskId)}
                 >
-                  Показать решение
+                  {name("practice.showSolution")}
                 </button>
               </div>
             </>

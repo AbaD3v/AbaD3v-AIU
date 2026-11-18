@@ -1,7 +1,8 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -17,31 +18,37 @@ import {
   Terminal,
   UserRound,
   X,
+  type LucideIcon,
 } from "lucide-react";
+import { SiteDocumentTitle } from "./site-name";
+import { brandName, type NameKey } from "@/app/lib/site-names/registry";
 import { useStudy } from "@/app/lib/sql/store";
 import { getStats } from "@/app/lib/sql/progress";
 import { tasks } from "@/app/lib/sql/course";
 import { useAccounts } from "@/app/lib/accounts/store";
 
-const links = [
-  { href: "/", label: "Практикум", icon: Layers3 },
-  { href: "/database/", label: "База магазина", icon: Database },
-  { href: "/profile/", label: "Мой прогресс", icon: ChartNoAxesCombined },
+type NavItem = { href: string; nameKey: NameKey; icon: LucideIcon };
+
+const links: NavItem[] = [
+  { href: "/", nameKey: "nav.catalog", icon: Layers3 },
+  { href: "/database/", nameKey: "nav.database", icon: Database },
+  { href: "/profile/", nameKey: "nav.profile", icon: ChartNoAxesCombined },
 ];
-const tools = [
-  { href: "/reference/", label: "Справочник SQL", icon: BookOpen },
-  { href: "/history/", label: "История запросов", icon: History },
-  { href: "/notes/", label: "Мои заметки", icon: NotebookPen },
+const tools: NavItem[] = [
+  { href: "/reference/", nameKey: "nav.reference", icon: BookOpen },
+  { href: "/history/", nameKey: "nav.history", icon: History },
+  { href: "/notes/", nameKey: "nav.notes", icon: NotebookPen },
 ];
-const adminLink = { href: "/admin/", label: "Админ-панель", icon: ShieldCheck };
-const accountLink = { href: "/account/", label: "Аккаунт", icon: UserRound };
+const adminLink: NavItem = { href: "/admin/", nameKey: "nav.admin", icon: ShieldCheck };
+const accountLink: NavItem = { href: "/account/", nameKey: "nav.account", icon: UserRound };
 
 export default function SqlShell({ children }: { children: ReactNode }) {
+  const name = useSiteNames();
   const pathname = usePathname();
   const { active } = useAccounts();
   const state = useStudy();
   const stats = getStats(state);
-  const displayName = active || state.name !== "Студент" ? state.name : "Гость";
+  const displayName = active || state.name !== "Студент" ? state.name : name("nav.guest");
   const [mobileOpen, setMobileOpen] = useState(false);
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -90,7 +97,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
       ? pathname === "/" || pathname.startsWith("/practice")
       : pathname.startsWith(link.href.replace(/\/$/, "")),
   );
-  function navItem(link: (typeof links)[number]) {
+  function navItem(link: NavItem) {
     const active = current?.href === link.href;
     return (
       <Link
@@ -101,22 +108,25 @@ export default function SqlShell({ children }: { children: ReactNode }) {
         onClick={() => setMobileOpen(false)}
       >
         <link.icon size={18} strokeWidth={1.75} />
-        <span>{link.label}</span>
+        <span>{name(link.nameKey)}</span>
         {active && <span className="nav-active-dot" />}
       </Link>
     );
   }
   return (
     <div className="app-layout">
+      <Suspense fallback={null}>
+        <SiteDocumentTitle />
+      </Suspense>
       <a className="skip-link" href="#main-content">
-        К содержимому
+        {name("nav.skip")}
       </a>
       <aside
         ref={sidebar}
         id="navigation"
         role={mobileOpen ? "dialog" : undefined}
         aria-modal={mobileOpen || undefined}
-        aria-label="Навигация"
+        aria-label={name("nav.region")}
         className={"sidebar " + (mobileOpen ? "mobile-open" : "")}
       >
         <div className="sidebar-brand">
@@ -125,22 +135,22 @@ export default function SqlShell({ children }: { children: ReactNode }) {
               <Terminal size={23} strokeWidth={2.3} />
             </span>
             <span>
-              CodeProof<span className="brand-dot">.</span>
-              <small>SQL ПРАКТИКУМ</small>
+              {brandName(name("site.name"))}<span className="brand-dot">.</span>
+              <small>{name("site.subtitle")}</small>
             </span>
           </Link>
           <button
             className="icon-button mobile-only"
             onClick={() => setMobileOpen(false)}
-            aria-label="Закрыть меню"
+            aria-label={name("nav.closeMenu")}
           >
             <X size={20} />
           </button>
         </div>
-        <nav aria-label="Основная навигация">
-          <span className="nav-label">ОБУЧЕНИЕ</span>
+        <nav aria-label={name("nav.main")}>
+          <span className="nav-label">{name("nav.learning")}</span>
           {links.map(navItem)}
-          <span className="nav-label secondary">ИНСТРУМЕНТЫ</span>
+          <span className="nav-label secondary">{name("nav.tools")}</span>
           {tools.map(navItem)}
           {active?.role === "admin" && navItem(adminLink)}
         </nav>
@@ -150,7 +160,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
               <ChartNoAxesCombined size={18} />
             </span>
             <div className="sidebar-progress-heading">
-              <strong>Шаг за шагом</strong>
+              <strong>{name("nav.progressTitle")}</strong>
               <span>
                 {stats.completed} из {tasks.length} задач решено
               </span>
@@ -159,7 +169,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
               <span style={{ width: stats.percent + "%" }} />
             </div>
             <Link href="/profile/" onClick={() => setMobileOpen(false)}>
-              Посмотреть прогресс <ArrowUpRight size={14} />
+              {name("nav.viewProgress")} <ArrowUpRight size={14} />
             </Link>
           </div>
           <Link
@@ -167,7 +177,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
             href="/about/"
             onClick={() => setMobileOpen(false)}
           >
-            О проекте <ArrowUpRight size={14} />
+            {name("nav.about")} <ArrowUpRight size={14} />
           </Link>
           <Link
             className="profile-link"
@@ -185,10 +195,10 @@ export default function SqlShell({ children }: { children: ReactNode }) {
               <strong>{displayName}</strong>
               <small>
                 {active?.role === "admin"
-                  ? "Администратор"
+                  ? name("common.roleAdmin")
                   : active
-                    ? "Студент"
-                    : "Вход и регистрация"}
+                    ? name("common.roleStudent")
+                    : name("account.entry")}
               </small>
             </span>
             <ChevronRight size={16} />
@@ -202,33 +212,33 @@ export default function SqlShell({ children }: { children: ReactNode }) {
               ref={menuButton}
               className="icon-button mobile-only"
               onClick={() => setMobileOpen(!mobileOpen)}
-              aria-label="Открыть меню"
+              aria-label={name("nav.openMenu")}
               aria-expanded={mobileOpen}
               aria-controls="navigation"
             >
               <Menu size={21} />
             </button>
-            <span className="breadcrumb-root">Рабочее пространство</span>
+            <span className="breadcrumb-root">{name("nav.breadcrumb")}</span>
             <ChevronRight size={14} />
-            <strong>{current?.label ?? "О проекте"}</strong>
+            <strong>{name(current?.nameKey ?? "nav.about")}</strong>
           </div>
           <div className="topbar-right">
             <span className="local-save">
               <Check size={14} />
               {state.storageIssue
-                ? "Сохранение недоступно"
-                : "Прогресс в этом браузере"}
+                ? name("nav.storageUnavailable")
+                : name("nav.localProgress")}
             </span>
             <Link href="/account/" className="topbar-account">
               <UserRound size={15} />
-              {active ? "Аккаунт" : "Войти"}
+              {active ? name("nav.account") : name("account.signIn")}
             </Link>
           </div>
         </header>
         {state.storageIssue && (
           <div className="storage-warning" role="status">
             {state.storageIssue}{" "}
-            <Link href="/profile/">Открыть прогресс →</Link>
+            <Link href="/profile/">{name("nav.progressWarning")}</Link>
           </div>
         )}
         <main id="main-content" tabIndex={-1}>

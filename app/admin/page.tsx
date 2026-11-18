@@ -1,9 +1,11 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Search, ShieldCheck, UsersRound } from "lucide-react";
 import { Modal, PageHeading } from "@/app/components/sql/ui";
 import QuizEditor from "@/app/components/sql/quiz-editor";
+import SiteNamesEditor from "@/app/components/sql/site-names-editor";
 import StudentProgress from "./student-progress";
 import {
   setStudentBlocked,
@@ -15,6 +17,7 @@ import { getStats, STORAGE_KEY } from "@/app/lib/sql/progress";
 import { readStudentStudy } from "@/app/lib/sql/store";
 
 export default function AdminPage() {
+  const name = useSiteNames();
   const { active, ready, students } = useAccounts();
   const isAdmin = active?.role === "admin";
   const [search, setSearch] = useState("");
@@ -43,12 +46,12 @@ export default function AdminPage() {
     return (
       <div className="page">
         <PageHeading
-          eyebrow="АККАУНТЫ"
-          title="Панель администратора"
+          eyebrow={name("admin.restrictedEyebrow")}
+          title={name("admin.heading")}
           description="Этот раздел доступен после входа с ролью администратора."
         />
         <Link className="button button-primary" href="/account/">
-          К аккаунту
+          {name("admin.toAccount")}
           <ArrowRight size={16} />
         </Link>
       </div>
@@ -82,28 +85,28 @@ export default function AdminPage() {
   return (
     <div className="page admin-page">
       <PageHeading
-        eyebrow="УПРАВЛЕНИЕ ПРАКТИКУМОМ"
-        title="Панель администратора"
+        eyebrow={name("admin.eyebrow")}
+        title={name("admin.heading")}
         description="Управляйте доступом студентов и смотрите их прогресс в этом браузере."
       >
         <Link href="/account/" className="button button-secondary">
           <ShieldCheck size={16} />
-          Мой аккаунт
+          {name("admin.myAccount")}
         </Link>
       </PageHeading>
       <div className="admin-stats">
         <div className="account-card">
           <UsersRound size={20} />
           <strong>{students.length}</strong>
-          <span>Всего студентов</span>
+          <span>{name("admin.totalStudents")}</span>
         </div>
         <div className="account-card">
           <strong>{students.length - blocked}</strong>
-          <span>Вход открыт</span>
+          <span>{name("admin.accessOpen")}</span>
         </div>
         <div className="account-card">
           <strong>{blocked}</strong>
-          <span>Вход приостановлен</span>
+          <span>{name("admin.accessSuspended")}</span>
         </div>
       </div>
       <section
@@ -111,12 +114,12 @@ export default function AdminPage() {
         aria-labelledby="student-list-title"
       >
         <div className="admin-list-heading">
-          <h2 id="student-list-title">Студенты</h2>
+          <h2 id="student-list-title">{name("admin.students")}</h2>
           <label className="search-input">
             <Search size={16} />
             <input
-              aria-label="Поиск студентов"
-              placeholder="Имя или логин"
+              aria-label={name("admin.search")}
+              placeholder={name("admin.searchPlaceholder")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -132,16 +135,16 @@ export default function AdminPage() {
             className="data-scroll admin-table-wrap"
             tabIndex={0}
             role="region"
-            aria-label="Список студентов"
+            aria-label={name("admin.studentList")}
           >
             <table className="data-table admin-table">
               <thead>
                 <tr>
-                  <th scope="col">Студент</th>
-                  <th scope="col">Решено</th>
-                  <th scope="col">Без подсказок</th>
-                  <th scope="col">Доступ</th>
-                  <th scope="col">Действие</th>
+                  <th scope="col">{name("common.roleStudent")}</th>
+                  <th scope="col">{name("common.solved")}</th>
+                  <th scope="col">{name("admin.independent")}</th>
+                  <th scope="col">{name("admin.access")}</th>
+                  <th scope="col">{name("admin.action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -168,7 +171,7 @@ export default function AdminPage() {
                               : "status status-done"
                           }
                         >
-                          {student.blocked ? "Приостановлен" : "Открыт"}
+                          {student.blocked ? name("admin.suspended") : name("admin.open")}
                         </span>
                       </td>
                       <td>
@@ -176,7 +179,7 @@ export default function AdminPage() {
                           className="button button-secondary"
                           onClick={() => setProgressId(student.id)}
                         >
-                          Посмотреть прогресс
+                          {name("nav.viewProgress")}
                           <span className="sr-only"> для {student.login}</span>
                         </button>{" "}
                         <button
@@ -187,8 +190,8 @@ export default function AdminPage() {
                           }}
                         >
                           {student.blocked
-                            ? "Восстановить вход"
-                            : "Приостановить вход"}
+                            ? name("admin.restoreAccess")
+                            : name("admin.suspendAccess")}
                           <span className="sr-only"> для {student.login}</span>
                         </button>
                       </td>
@@ -206,13 +209,14 @@ export default function AdminPage() {
           </p>
         )}
       </section>
+      <SiteNamesEditor key={active.id} />
       <QuizEditor key={active.id} adminId={active.id} />
       {selectedStudent && (
         <StudentProgress student={selectedStudent} onClose={() => setProgressId(null)} />
       )}
       {target && (
         <Modal
-          title={target.blocked ? "Восстановить вход?" : "Приостановить вход?"}
+          title={target.blocked ? name("admin.restoreAccessTitle") : name("admin.suspendAccessTitle")}
           onClose={() => setTarget(null)}
         >
           <p>
@@ -231,13 +235,13 @@ export default function AdminPage() {
               className="button button-secondary"
               onClick={() => setTarget(null)}
             >
-              Отмена
+              {name("common.cancel")}
             </button>
             <button
               className="button button-primary"
               onClick={() => toggleAccess(target)}
             >
-              {target.blocked ? "Восстановить" : "Приостановить"}
+              {target.blocked ? name("admin.restore") : name("admin.suspend")}
             </button>
           </div>
         </Modal>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { tasks, getTask } from "@/app/lib/sql/course";
 import Workspace from "@/app/components/sql/workspace";
+import { staticNames } from "@/app/lib/site-names/registry";
 export function generateStaticParams() {
   return tasks.map((task) => ({ id: task.id }));
 }
@@ -12,7 +13,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  return { title: getTask(id)?.title ?? "Задание" };
+  return { title: getTask(id)?.title ?? staticNames["practice.task"] };
 }
 export default async function PracticePage({
   params,

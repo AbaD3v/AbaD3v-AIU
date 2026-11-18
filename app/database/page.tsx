@@ -1,4 +1,5 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -14,6 +15,7 @@ import { tasks, taskHref } from "@/app/lib/sql/course";
 import { DataTable, PageHeading, DatabaseBadge } from "@/app/components/sql/ui";
 
 export default function DatabasePage() {
+  const name = useSiteNames();
   const [selected, setSelected] = useState("products");
   const [tab, setTab] = useState("data");
   const [query, setQuery] = useState("");
@@ -29,8 +31,8 @@ export default function DatabasePage() {
   return (
     <div className="page">
       <PageHeading
-        eyebrow="ДАННЫЕ ДЛЯ ПРАКТИКИ"
-        title="Познакомься с магазином."
+        eyebrow={name("database.eyebrow")}
+        title={name("database.heading")}
         description="Все задания используют эту базу. Изучи таблицы, значения и связи между ними."
       >
         <DatabaseBadge />
@@ -39,12 +41,12 @@ export default function DatabasePage() {
         <div>
           <Database size={23} />
           <span>
-            <strong>shop.db</strong>
-            <small>Учебный интернет-магазин</small>
+            <strong>{name("common.databaseFile")}</strong>
+            <small>{name("database.shop")}</small>
           </span>
         </div>
         <span>
-          <strong>{tables.length}</strong> таблиц
+          <strong>{tables.length}</strong> {name("database.tableCount")}
         </span>
         <span>
           <strong>
@@ -53,7 +55,7 @@ export default function DatabasePage() {
               0,
             )}
           </strong>{" "}
-          строк данных
+          {name("database.rowCount")}
         </span>
         <span className="database-period">Январь — март 2026</span>
       </div>
@@ -63,14 +65,14 @@ export default function DatabasePage() {
           onClick={() => setTab("data")}
         >
           <Table2 size={15} />
-          Данные и столбцы
+          {name("database.dataTab")}
         </button>
         <button
           className={tab === "schema" ? "active" : ""}
           onClick={() => setTab("schema")}
         >
           <GitBranch size={15} />
-          Связи таблиц
+          {name("database.schemaTab")}
         </button>
       </div>
       {tab === "data" ? (
@@ -88,7 +90,7 @@ export default function DatabasePage() {
                 <Table2 size={17} />
                 <span>
                   <strong>{item.name}</strong>
-                  <small>{item.label}</small>
+                  <small>{name(`table.${item.name}`)}</small>
                 </span>
                 <span>{shopData[item.name].length}</span>
               </button>
@@ -101,7 +103,7 @@ export default function DatabasePage() {
           <section className="table-inspector">
             <div className="inspector-heading">
               <div>
-                <span className="eyebrow">{table.label}</span>
+                <span className="eyebrow">{name(`table.${table.name}`)}</span>
                 <h2>{table.name}</h2>
                 <p>{table.description}</p>
               </div>
@@ -109,7 +111,7 @@ export default function DatabasePage() {
                 className="button button-secondary"
                 href={taskHref(task.id)}
               >
-                К заданию
+                {name("database.toTask")}
                 <ArrowRight size={15} />
               </Link>
             </div>
@@ -141,8 +143,8 @@ export default function DatabasePage() {
               <label className="search-input">
                 <Search size={15} />
                 <input
-                  aria-label="Поиск по таблице"
-                  placeholder="Поиск по таблице"
+                  aria-label={name("database.search")}
+                  placeholder={name("database.search")}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
@@ -151,7 +153,7 @@ export default function DatabasePage() {
             <DataTable
               columns={table.fields.map((field) => field.name)}
               rows={rows}
-              caption={table.label}
+              caption={name(`table.${table.name}`)}
             />
           </section>
         </div>
@@ -177,9 +179,10 @@ export default function DatabasePage() {
               >
                 <div>
                   <Table2 size={17} />
-                  <strong>{item.name}</strong>
+                  <strong>{name(`table.${item.name}`)}</strong>
                   <span>{shopData[item.name].length}</span>
                 </div>
+                <p><code>{item.name}</code></p>
                 {item.fields.map((field) => (
                   <p key={field.name}>
                     <span>
@@ -191,7 +194,7 @@ export default function DatabasePage() {
                   </p>
                 ))}
                 <span className="schema-card-action">
-                  Посмотреть данные
+                  {name("database.viewData")}
                   <ArrowRight size={13} />
                 </span>
               </button>
@@ -206,7 +209,7 @@ export default function DatabasePage() {
                     <code>
                       {item.name}.{field.name}
                     </code>
-                    <span>много → один</span>
+                    <span>{name("database.relationship")}</span>
                     <code>{field.reference}</code>
                   </div>
                 )),

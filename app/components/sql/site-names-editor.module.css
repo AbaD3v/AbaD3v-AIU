@@ -1,0 +1,79 @@
+.editor,
+.form,
+.fields {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.search {
+  max-width: 32rem;
+}
+
+.group {
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.group summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fields {
+  margin-top: 14px;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px 12px;
+}
+
+.field label {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.field input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.field input[aria-invalid="true"] {
+  border-color: #9b362a;
+}
+
+.field small {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
+.editor button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 540px) {
+  .field {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .field label {
+    width: 100%;
+  }
+}

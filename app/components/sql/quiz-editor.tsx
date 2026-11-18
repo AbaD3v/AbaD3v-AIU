@@ -1,5 +1,6 @@
 "use client";
 
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useEffect, useState } from "react";
 import { tasks } from "@/app/lib/sql/course";
 import {
@@ -81,6 +82,7 @@ function updateUnloadWarning(adminId: string, hasDrafts: boolean) {
 }
 
 export default function QuizEditor({ adminId }: { adminId: string }) {
+  const name = useSiteNames();
   const [taskId, setTaskId] = useState(tasks[0]?.id ?? "");
   const savedQuestions = useQuizQuestions(taskId);
   const [drafts, setDrafts] = useState(() => readDrafts(adminId));
@@ -160,13 +162,13 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
   return (
     <section className={`account-card ${styles.editor}`} aria-labelledby="quiz-editor-title">
       <div>
-        <h2 id="quiz-editor-title">Вопросы тестов</h2>
+        <h2 id="quiz-editor-title">{name("admin.quizHeading")}</h2>
         <p className="account-help">Выберите задание и настройте тест. Изменения применяются только по кнопке сохранения.</p>
       </div>
       <label className={styles.field}>
-        Задание
+        {name("practice.task")}
         <select value={taskId} onChange={(event) => setTaskId(event.target.value)}>
-          {tasks.map((task) => <option key={task.id} value={task.id}>{task.title}{drafts[task.id] ? " • не сохранено" : ""}</option>)}
+          {tasks.map((task) => <option key={task.id} value={task.id}>{name(`task.${task.id}`)}{drafts[task.id] ? ` • ${name("admin.draftBadge")}` : ""}</option>)}
         </select>
       </label>
       <p className="account-help">Черновики остаются в этой вкладке при переходах по сайту. Сохраняйте каждое задание отдельно.</p>
@@ -178,7 +180,7 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
           aria-controls="quiz-editor-preview"
           onClick={() => setPreviewOpen(!previewOpen)}
         >
-          {previewOpen ? "Скрыть предпросмотр" : "Предпросмотр"}
+          {previewOpen ? name("admin.hidePreview") : name("admin.preview")}
         </button>
       </div>
       <section
@@ -187,7 +189,7 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
         aria-labelledby="quiz-preview-title"
         hidden={!previewOpen}
       >
-        <h3 id="quiz-preview-title">Предпросмотр</h3>
+        <h3 id="quiz-preview-title">{name("admin.preview")}</h3>
         {previewOpen && (questions.length ? (
           <QuizPreview key={taskId + JSON.stringify(questions)} questions={questions} />
         ) : (
@@ -195,41 +197,41 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
         ))}
       </section>
       <form key={taskId} className={styles.form} noValidate onSubmit={(event) => { event.preventDefault(); save(); }}>
-        <p className="account-help">Вопросов: {questions.length}.{draft && " Есть несохранённые изменения."}</p>
+        <p className="account-help">{name("admin.questionCount")} {questions.length}.{draft && " Есть несохранённые изменения."}</p>
         {!questions.length && <p className={styles.empty}>Вопросов нет. Сохраните пустой список, чтобы отключить тест для этого задания.</p>}
         {questions.map((question, questionIndex) => (
           <fieldset key={question.id} className={styles.question}>
-            <legend>Вопрос {questionIndex + 1}</legend>
+            <legend>{name("quiz.question")} {questionIndex + 1}</legend>
             <label className={styles.field}>
-              Текст вопроса
+              {name("admin.questionText")}
               <textarea rows={3} value={question.prompt} onChange={(event) => updateQuestion(question.id, { prompt: event.target.value })} />
             </label>
             <fieldset className={styles.options}>
-              <legend>Варианты ответа</legend>
+              <legend>{name("admin.answerOptions")}</legend>
               <p className="account-help">Добавьте минимум два разных непустых варианта и отметьте один правильный.</p>
               {question.options.map((option, optionIndex) => (
                 <div key={optionIndex} className={styles.option}>
                   <label className={styles.correct}>
                     <input type="radio" name={`correct-${question.id}`} checked={question.correctIndex === optionIndex} onChange={() => updateQuestion(question.id, { correctIndex: optionIndex })} />
-                    <span>Правильный<span className="sr-only"> вариант {optionIndex + 1}</span></span>
+                    <span>{name("admin.correct")}<span className="sr-only"> {name("admin.option").toLocaleLowerCase("ru")} {optionIndex + 1}</span></span>
                   </label>
                   <label className={styles.field}>
-                    <span className="sr-only">Вариант {optionIndex + 1}</span>
-                    <input type="text" placeholder={`Вариант ${optionIndex + 1}`} value={option} onChange={(event) => updateQuestion(question.id, { options: question.options.map((text, index) => index === optionIndex ? event.target.value : text) })} />
+                    <span className="sr-only">{name("admin.option")} {optionIndex + 1}</span>
+                    <input type="text" placeholder={`${name("admin.option")} ${optionIndex + 1}`} value={option} onChange={(event) => updateQuestion(question.id, { options: question.options.map((text, index) => index === optionIndex ? event.target.value : text) })} />
                   </label>
-                  <button type="button" className="button button-secondary" disabled={question.options.length <= 2} aria-label={`Удалить вариант ${optionIndex + 1}`} onClick={() => updateQuestion(question.id, {
+                  <button type="button" className="button button-secondary" disabled={question.options.length <= 2} aria-label={`${name("common.delete")} ${name("admin.option").toLocaleLowerCase("ru")} ${optionIndex + 1}`} onClick={() => updateQuestion(question.id, {
                     options: question.options.filter((_, index) => index !== optionIndex),
                     correctIndex: question.correctIndex === optionIndex ? -1 : question.correctIndex > optionIndex ? question.correctIndex - 1 : question.correctIndex,
-                  })}>Удалить</button>
+                  })}>{name("common.delete")}</button>
                 </div>
               ))}
-              <button type="button" className="button button-secondary" onClick={() => updateQuestion(question.id, { options: [...question.options, ""] })}>Добавить вариант</button>
+              <button type="button" className="button button-secondary" onClick={() => updateQuestion(question.id, { options: [...question.options, ""] })}>{name("admin.addOption")}</button>
             </fieldset>
             <label className={styles.field}>
-              Объяснение (необязательно)
+              {name("admin.explanation")}
               <textarea rows={2} value={question.explanation} onChange={(event) => updateQuestion(question.id, { explanation: event.target.value })} />
             </label>
-            <button type="button" className={`button button-secondary ${styles.remove}`} onClick={() => edit(questions.filter((item) => item.id !== question.id))}>Удалить вопрос {questionIndex + 1}</button>
+            <button type="button" className={`button button-secondary ${styles.remove}`} onClick={() => edit(questions.filter((item) => item.id !== question.id))}>{name("admin.deleteQuestion")} {questionIndex + 1}</button>
           </fieldset>
         ))}
         {saveResult && "errors" in saveResult && (
@@ -242,8 +244,8 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
           <p role="status" className="notice-banner">{saveResult.notice}</p>
         )}
         <div className={styles.actions}>
-          <button type="button" className="button button-secondary" onClick={() => edit([...questions, { id: crypto.randomUUID(), prompt: "", options: ["", ""], correctIndex: -1, explanation: "" }])}>Добавить вопрос</button>
-          <button type="submit" className="button button-primary">Сохранить вопросы</button>
+          <button type="button" className="button button-secondary" onClick={() => edit([...questions, { id: crypto.randomUUID(), prompt: "", options: ["", ""], correctIndex: -1, explanation: "" }])}>{name("admin.addQuestion")}</button>
+          <button type="submit" className="button button-primary">{name("admin.saveQuiz")}</button>
         </div>
       </form>
     </section>
@@ -251,23 +253,24 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
 }
 
 function QuizPreview({ questions }: { questions: QuizQuestion[] }) {
+  const name = useSiteNames();
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState<number | null>(null);
   const question = questions[current];
   const lastQuestion = current === questions.length - 1;
   const correctOption = question.options[question.correctIndex];
   const optionText = (index: number) =>
-    question.options[index]?.trim() || `Вариант ${index + 1}`;
+    question.options[index]?.trim() || `${name("admin.option")} ${index + 1}`;
 
   return (
     <div className={styles.previewBody}>
       <div className={quizStyles.message}>
-        <small>Вопрос {current + 1} из {questions.length}</small>
+        <small>{name("quiz.question")} {current + 1} из {questions.length}</small>
         <p>{question.prompt.trim() || "Текст вопроса ещё не заполнен."}</p>
       </div>
       {answer === null ? (
         <fieldset className={quizStyles.options}>
-          <legend>Выбери ответ на вопрос {current + 1}</legend>
+          <legend>{name("quiz.choose")} {current + 1}</legend>
           {question.options.map((_, index) => (
             <button
               key={index}
@@ -282,7 +285,7 @@ function QuizPreview({ questions }: { questions: QuizQuestion[] }) {
       ) : (
         <>
           <div className={`${quizStyles.message} ${quizStyles.answer}`}>
-            <small>Твой ответ</small>
+            <small>{name("quiz.yourAnswer")}</small>
             <p>{optionText(answer)}</p>
           </div>
           <div className={quizStyles.message} role="status">
@@ -290,9 +293,9 @@ function QuizPreview({ questions }: { questions: QuizQuestion[] }) {
               <strong>Правильный ответ ещё не выбран.</strong>
             ) : (
               <>
-                <strong>{answer === question.correctIndex ? "Верно!" : "Неверно."}</strong>
+                <strong>{answer === question.correctIndex ? name("quiz.correct") : name("quiz.wrong")}</strong>
                 {answer !== question.correctIndex && (
-                  <p>Правильный ответ: {optionText(question.correctIndex)}</p>
+                  <p>{name("quiz.correctAnswer")} {optionText(question.correctIndex)}</p>
                 )}
               </>
             )}
@@ -307,7 +310,7 @@ function QuizPreview({ questions }: { questions: QuizQuestion[] }) {
                 setAnswer(null);
               }}
             >
-              {lastQuestion ? "Новая попытка" : "Следующий вопрос"}
+              {lastQuestion ? name("quiz.retry") : name("quiz.next")}
             </button>
           </div>
         </>

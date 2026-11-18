@@ -1,19 +1,19 @@
 import { getTask } from "@/app/lib/sql/course";
 
 export const actionOptions = [
-  { value: "run", label: "Запуск SQL" },
-  { value: "check", label: "Проверка решения" },
-];
+  { value: "run", nameKey: "history.run" },
+  { value: "check", nameKey: "history.check" },
+] as const;
 
 export const resultOptions = [
-  { value: "success", label: "Успешные" },
-  { value: "failure", label: "Неудачные" },
-];
+  { value: "success", nameKey: "history.success" },
+  { value: "failure", nameKey: "history.failure" },
+] as const;
 
 export const defaultFilters = { search: "", taskId: "", action: "", result: "" };
 type HistoryFilters = typeof defaultFilters;
 
-function isSelection(value: unknown, options: { value: string }[]): value is string {
+function isSelection(value: unknown, options: readonly { value: string }[]): value is string {
   return value === "" || options.some((option) => option.value === value);
 }
 

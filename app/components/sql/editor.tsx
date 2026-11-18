@@ -1,4 +1,5 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import CodeMirror from "@uiw/react-codemirror";
 import { sql, SQLite } from "@codemirror/lang-sql";
 import { EditorView, keymap } from "@codemirror/view";
@@ -66,6 +67,7 @@ export default function SqlEditor({
   onRun: () => void;
   onCheck: () => void;
 }) {
+  const name = useSiteNames();
   const extensions = useMemo(
     () => [
       sql({ dialect: SQLite, schema: sqlSchema, upperCaseKeywords: true }),
@@ -88,12 +90,12 @@ export default function SqlEditor({
         indentWithTab,
       ]),
       EditorView.contentAttributes.of({
-        "aria-label": "SQL-запрос",
+        "aria-label": name("practice.sqlQuery"),
         "data-testid": "sql-editor",
         spellcheck: "false",
       }),
     ],
-    [onRun, onCheck],
+    [name, onRun, onCheck],
   );
   return (
     <CodeMirror
@@ -111,7 +113,7 @@ export default function SqlEditor({
         bracketMatching: true,
         highlightSelectionMatches: true,
       }}
-      aria-label="Редактор SQL"
+      aria-label={name("practice.editor")}
     />
   );
 }
