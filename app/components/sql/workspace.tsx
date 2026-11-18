@@ -46,6 +46,7 @@ import { emptyProgress, getNextTask } from "@/app/lib/sql/progress";
 import { DataTable, DatabaseBadge, Modal, downloadText } from "./ui";
 import RestoreQuery from "./restore-query";
 import { useQuizQuestions } from "@/app/lib/sql/quiz";
+import quizEntryStyles from "./workspace-quiz-entry.module.css";
 
 const Editor = dynamic(() => import("./editor"), {
   ssr: false,
@@ -272,11 +273,6 @@ export default function Workspace({ taskId }: { taskId: string }) {
           </p>
         </div>
         <div className="task-pager">
-          {quizQuestions.length > 0 && (
-            <Link className="button button-secondary" href={`/quiz/?task=${encodeURIComponent(taskId)}`}>
-              Пройти тест
-            </Link>
-          )}
           <button
             className="text-button"
             disabled={!!busy}
@@ -593,6 +589,24 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <div className="engine-loading" role="status">
               <LoaderCircle size={15} className="spin" />
               Подготавливаем учебную базу…
+            </div>
+          )}
+          {quizQuestions.length > 0 && (
+            <div className={quizEntryStyles.entry} aria-live="polite">
+              <p>
+                {progress.solvedAt
+                  ? "Задание решено. Закрепите тему в коротком тесте."
+                  : "Тест откроется после успешной проверки решения."}
+              </p>
+              {progress.solvedAt && (
+                <Link
+                  className={`button button-secondary ${quizEntryStyles.link}`}
+                  href={`/quiz/?task=${encodeURIComponent(taskId)}`}
+                >
+                  Закрепить тему
+                  <ArrowRight size={16} aria-hidden="true" />
+                </Link>
+              )}
             </div>
           )}
           <div className="results-card">
