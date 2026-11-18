@@ -1,4 +1,5 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -25,6 +26,7 @@ import {
 import { TaskLink } from "./ui";
 
 export default function Catalog() {
+  const name = useSiteNames();
   const state = useStudy();
   const stats = getStats(state);
   const [search, setSearch] = useState("");
@@ -35,7 +37,7 @@ export default function Catalog() {
   const filtered = tasks.filter((task) => {
     const progress = state.progress[task.id];
     const matches = (
-      task.title +
+      name(`task.${task.id}`) +
       " " +
       task.tags.join(" ") +
       " " +
@@ -58,44 +60,36 @@ export default function Catalog() {
     <div className="page catalog-page">
       <div className="catalog-title">
         <div>
-          <span className="eyebrow">УЧЕБНАЯ ЛАБОРАТОРИЯ</span>
-          <h1>
-            От первого SELECT
-            <br className="mobile-only" /> до анализа продаж<span>.</span>
-          </h1>
+          <span className="eyebrow">{name("catalog.eyebrow")}</span>
+          <h1>{name("catalog.heading")}</h1>
           <p>
             Пиши запросы, исследуй данные и проверяй решения в настоящей базе.
           </p>
         </div>
         <span className="course-label">
           <span />
-          <strong>Практический курс</strong>
+          <strong>{name("catalog.courseBadge")}</strong>
           <small>SQLite</small>
         </span>
       </div>
-      <section className="course-hero" aria-label="Продолжить обучение">
+      <section className="course-hero" aria-label={name("catalog.continueRegion")}>
         <div className="hero-copy">
           <span className="hero-eyebrow">
             <span className="hero-spark">
               <Sparkles size={14} />
             </span>
             {stats.completed === 15
-              ? "ОТЛИЧНАЯ РАБОТА — КУРС ПРОЙДЕН"
+              ? name("catalog.completedEyebrow")
               : started
-                ? "ПРОДОЛЖАЕМ С ТОГО ЖЕ МЕСТА"
-                : "БОЛЬШИЕ ВЫВОДЫ НАЧИНАЮТСЯ С МАЛЕНЬКОГО ЗАПРОСА"}
+                ? name("catalog.continueEyebrow")
+                : name("catalog.startEyebrow")}
           </span>
           <h2>
-            {!nextTask ? (
-              "Все 15 задач решены."
-            ) : started ? (
-              nextTask.title
-            ) : (
-              <>
-                Твоя первая работа
-                <br />с настоящими данными.
-              </>
-            )}
+            {!nextTask
+              ? name("catalog.completedHeading")
+              : started
+                ? name(`task.${nextTask.id}`)
+                : name("catalog.startHeading")}
           </h2>
           <p>
             Один интернет-магазин. Пять связанных таблиц.
@@ -107,10 +101,10 @@ export default function Catalog() {
             className="button button-lime"
           >
             {!nextTask
-              ? "Посмотреть результаты"
+              ? name("common.viewResults")
               : started
-                ? "Продолжить практику"
-                : "Начать практику"}
+                ? name("catalog.resume")
+                : name("catalog.start")}
             <ArrowRight size={17} />
           </Link>
           <span className="hero-footnote">
@@ -171,7 +165,7 @@ export default function Catalog() {
             </code>
             <span className="mini-query-result">
               <Check size={12} />
-              Запрос выполнен
+              {name("common.querySuccess")}
             </span>
           </div>
         </div>
@@ -183,7 +177,7 @@ export default function Catalog() {
           </span>
           <span>
             <strong>15</strong>
-            <small>практических задач</small>
+            <small>{name("catalog.taskCount")}</small>
           </span>
         </div>
         <div>
@@ -192,7 +186,7 @@ export default function Catalog() {
           </span>
           <span>
             <strong>5</strong>
-            <small>связанных таблиц</small>
+            <small>{name("catalog.tableCount")}</small>
           </span>
         </div>
         <div>
@@ -201,9 +195,9 @@ export default function Catalog() {
           </span>
           <span>
             <strong>
-              5–20 <em>мин</em>
+              5–20 <em>{name("common.minutes")}</em>
             </strong>
-            <small>на одно задание</small>
+            <small>{name("catalog.timePerTask")}</small>
           </span>
         </div>
         <div className="overview-progress">
@@ -217,7 +211,7 @@ export default function Catalog() {
             <strong>
               {stats.completed} <em>/ 15</em>
             </strong>
-            <small>твой прогресс</small>
+            <small>{name("catalog.progress")}</small>
           </span>
         </div>
       </div>
@@ -225,10 +219,10 @@ export default function Catalog() {
         <section className="task-catalog" aria-labelledby="course-heading">
           <div className="section-title">
             <div>
-              <h2 id="course-heading">Программа практикума</h2>
+              <h2 id="course-heading">{name("catalog.program")}</h2>
               <p>От простых выборок до ответов на бизнес-вопросы.</p>
             </div>
-            <span className="count-label">5 модулей</span>
+            <span className="count-label">{name("catalog.moduleCount")}</span>
           </div>
           <div className="catalog-toolbar">
             <label className="search-input">
@@ -236,13 +230,13 @@ export default function Catalog() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Найти задание или SQL-команду"
-                aria-label="Поиск заданий"
+                placeholder={name("catalog.searchPlaceholder")}
+                aria-label={name("catalog.search")}
               />
               {search && (
                 <button
                   onClick={() => setSearch("")}
-                  aria-label="Очистить поиск"
+                  aria-label={name("common.clearSearch")}
                 >
                   ×
                 </button>
@@ -253,27 +247,25 @@ export default function Catalog() {
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value)}
-                aria-label="Статус заданий"
+                aria-label={name("catalog.statusFilter")}
               >
-                <option value="all">Все задания</option>
-                <option value="new">Не начаты</option>
-                <option value="started">В процессе</option>
-                <option value="done">Решены</option>
+                <option value="all">{name("common.allTasks")}</option>
+                <option value="new">{name("catalog.statusNew")}</option>
+                <option value="started">{name("common.inProgress")}</option>
+                <option value="done">{name("catalog.statusDone")}</option>
               </select>
               <ChevronDown size={13} />
             </label>
           </div>
-          <div className="module-filters" aria-label="Модули">
+          <div className="module-filters" aria-label={name("catalog.modules")}>
             {[
-              { id: 0, title: "Все темы" },
+              { id: 0, title: name("catalog.allModules") },
               ...modules.map((module) => ({
                 id: module.id,
                 title:
                   String(module.id).padStart(2, "0") +
                   " · " +
-                  ["Основы", "Сортировка", "Связи", "Отчёты", "Аналитика"][
-                    module.id - 1
-                  ],
+                  name(`module.short.${module.id}`),
               })),
             ].map((module) => (
               <button
@@ -313,7 +305,7 @@ export default function Catalog() {
                         )}
                       </span>
                       <div>
-                        <h3>{module.title}</h3>
+                        <h3>{name(`module.${module.id}`)}</h3>
                         <p>{module.subtitle}</p>
                       </div>
                       <span className="module-completion">{completed} / 3</span>
@@ -337,7 +329,7 @@ export default function Catalog() {
             {!filtered.length && (
               <div className="empty-state">
                 <Search size={30} />
-                <h3>Задания не найдены</h3>
+                <h3>{name("catalog.empty")}</h3>
                 <p>Попробуйте другой запрос или сбросьте фильтры.</p>
                 <button
                   className="button button-secondary"
@@ -347,7 +339,7 @@ export default function Catalog() {
                     setModuleId(0);
                   }}
                 >
-                  Сбросить фильтры
+                  {name("catalog.clearFilters")}
                 </button>
               </div>
             )}
@@ -358,35 +350,31 @@ export default function Catalog() {
             <div className="card-icon">
               <Database size={23} />
             </div>
-            <span className="eyebrow">УЧЕБНЫЙ ПРОЕКТ</span>
-            <h3>
-              Данные одного
-              <br />
-              интернет-магазина.
-            </h3>
+            <span className="eyebrow">{name("catalog.databaseEyebrow")}</span>
+            <h3>{name("catalog.databaseHeading")}</h3>
             <p>
               Товары, покупатели, заказы и платежи. Все задачи связаны одной
               историей.
             </p>
             <div className="database-file">
               <Database size={15} />
-              <span>shop.db</span>
+              <span>{name("common.databaseFile")}</span>
               <span className="status-dot" />
             </div>
             <Link href="/database/" className="text-link">
-              Исследовать базу <ArrowUpRight size={16} />
+              {name("catalog.exploreDatabase")} <ArrowUpRight size={16} />
             </Link>
           </div>
           <div className="tips-card">
             <BookOpen size={21} />
-            <h3>Забыл синтаксис?</h3>
+            <h3>{name("catalog.referenceHeading")}</h3>
             <p>Короткие объяснения и примеры SQL-команд всегда под рукой.</p>
             <Link href="/reference/" className="text-link">
-              Открыть справочник <ArrowRight size={15} />
+              {name("catalog.openReference")} <ArrowRight size={15} />
             </Link>
           </div>
           <div className="course-note">
-            <span>МАЛЕНЬКИЙ СОВЕТ</span>
+            <span>{name("catalog.tip")}</span>
             <p>
               Сначала посмотри на данные. Хороший запрос начинается с хорошего
               вопроса.
@@ -397,10 +385,10 @@ export default function Catalog() {
       </div>
       <footer className="page-footer">
         <span>
-          CodeProof SQL <span>·</span> Учись на практике.
+          {name("site.name")} <span>·</span> {name("catalog.footerTagline")}
         </span>
         <Link href="/about/">
-          Как устроен практикум <ArrowUpRight size={13} />
+          {name("catalog.aboutLink")} <ArrowUpRight size={13} />
         </Link>
       </footer>
     </div>

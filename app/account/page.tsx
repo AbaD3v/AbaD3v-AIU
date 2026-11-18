@@ -1,4 +1,5 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,10 +17,11 @@ import {
 type Mode = "login" | "register" | "setup";
 
 export default function AccountPage() {
+  const name = useSiteNames();
   const accounts = useAccounts();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
-  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,7 +46,7 @@ export default function AccountPage() {
     try {
       if (registering) {
         const create = setup ? setupDemoAdmin : registerStudent;
-        const createdLogin = await create({ name, login, password });
+        const createdLogin = await create({ name: displayName, login, password });
         setLogin(createdLogin);
         switchMode("login");
         setNotice(
@@ -71,7 +73,7 @@ export default function AccountPage() {
     <div className="page account-page">
       <PageHeading
         eyebrow="CODEPROOF SQL"
-        title="Аккаунт практикума"
+        title={name("account.heading")}
         description="Учебные аккаунты и прогресс хранятся в этом браузере."
       />
       {!accounts.ready ? (
@@ -87,7 +89,7 @@ export default function AccountPage() {
           </span>
           <h2>{accounts.active.name}</h2>
           <p>
-            {accounts.active.role === "admin" ? "Администратор" : "Студент"} ·{" "}
+            {accounts.active.role === "admin" ? name("common.roleAdmin") : name("common.roleStudent")} ·{" "}
             {accounts.active.login}
           </p>
           <div className="account-actions">
@@ -96,8 +98,8 @@ export default function AccountPage() {
               href={accounts.active.role === "admin" ? "/admin/" : "/profile/"}
             >
               {accounts.active.role === "admin"
-                ? "Админ-панель"
-                : "Мой прогресс"}
+                ? name("nav.admin")
+                : name("nav.profile")}
               <ArrowRight size={16} />
             </Link>
             <button
@@ -113,7 +115,7 @@ export default function AccountPage() {
               }}
             >
               <LogOut size={16} />
-              Выйти
+              {name("account.signOut")}
             </button>
           </div>
           {error && (
@@ -133,14 +135,14 @@ export default function AccountPage() {
             className="account-card"
             aria-labelledby="account-form-title"
           >
-            <div className="account-switch" aria-label="Действие с аккаунтом">
+            <div className="account-switch" aria-label={name("account.mode")}>
               <button
                 type="button"
                 aria-pressed={!registering}
                 disabled={busy}
                 onClick={() => switchMode("login")}
               >
-                Вход
+                {name("account.signInTab")}
               </button>
               <button
                 type="button"
@@ -148,15 +150,15 @@ export default function AccountPage() {
                 disabled={busy}
                 onClick={() => switchMode("register")}
               >
-                Регистрация студента
+                {name("account.registerTab")}
               </button>
             </div>
             <h2 id="account-form-title">
               {setup
-                ? "Создать демо администратора"
+                ? name("account.setupHeading")
                 : registering
-                  ? "Регистрация студента"
-                  : "Войти в аккаунт"}
+                  ? name("account.registerTab")
+                  : name("account.signInHeading")}
             </h2>
             {setup && (
               <p className="account-help">
@@ -167,18 +169,18 @@ export default function AccountPage() {
             <form className="account-form" onSubmit={submit}>
               {registering && (
                 <label>
-                  Имя
+                  {name("account.name")}
                   <input
                     autoComplete="name"
                     required
                     maxLength={40}
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
                   />
                 </label>
               )}
               <label>
-                Логин
+                {name("account.login")}
                 <input
                   autoComplete="username"
                   required
@@ -190,7 +192,7 @@ export default function AccountPage() {
                 />
               </label>
               <label>
-                Пароль
+                {name("account.password")}
                 <input
                   type="password"
                   autoComplete={
@@ -224,7 +226,7 @@ export default function AccountPage() {
                     refreshAccounts();
                   }}
                 >
-                  Проверить хранилище снова
+                  {name("account.retryStorage")}
                 </button>
               )}
               {notice && (
@@ -237,12 +239,12 @@ export default function AccountPage() {
                 disabled={busy || !!accounts.error}
               >
                 {busy
-                  ? "Подождите…"
+                  ? name("account.wait")
                   : setup
-                    ? "Создать администратора"
+                    ? name("account.createAdmin")
                     : registering
-                      ? "Зарегистрироваться"
-                      : "Войти"}
+                      ? name("account.register")
+                      : name("account.signIn")}
                 <ArrowRight size={16} />
               </button>
             </form>
@@ -254,12 +256,12 @@ export default function AccountPage() {
             <span className="account-icon">
               <ShieldCheck size={24} />
             </span>
-            <h2 id="account-guide-title">Роли в практикуме</h2>
+            <h2 id="account-guide-title">{name("account.roles")}</h2>
             <p>
-              <strong>Студент</strong> решает задания и ведёт свой прогресс.
+              <strong>{name("common.roleStudent")}</strong> решает задания и ведёт свой прогресс.
             </p>
             <p>
-              <strong>Администратор</strong> видит прогресс студентов и
+              <strong>{name("common.roleAdmin")}</strong> видит прогресс студентов и
               управляет их входом.
             </p>
             {!accounts.hasAdmin && !setup && (
@@ -268,11 +270,11 @@ export default function AccountPage() {
                 disabled={busy || !!accounts.error}
                 onClick={() => {
                   switchMode("setup");
-                  setName("");
+                  setDisplayName("");
                   setLogin("");
                 }}
               >
-                Настроить демо администратора
+                {name("account.setup")}
               </button>
             )}
             {accounts.temporarySession && (
@@ -283,7 +285,7 @@ export default function AccountPage() {
               устройстве список аккаунтов будет отдельным.
             </small>
             <Link className="text-link" href="/">
-              Открыть практикум как гость
+              {name("account.guestPractice")}
               <ArrowRight size={15} />
             </Link>
           </aside>

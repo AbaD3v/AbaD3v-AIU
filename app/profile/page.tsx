@@ -1,4 +1,5 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useAccounts } from "@/app/lib/accounts/store";
@@ -34,6 +35,7 @@ import {
 } from "@/app/components/sql/ui";
 
 export default function ProfilePage() {
+  const name = useSiteNames();
   const { active } = useAccounts();
   const state = useStudy();
   const stats = getStats(state);
@@ -85,15 +87,15 @@ export default function ProfilePage() {
   return (
     <div className="page progress-page">
       <PageHeading
-        eyebrow="ТВОЙ ПУТЬ В SQL"
-        title="Каждый запрос — шаг вперёд."
+        eyebrow={name("profile.eyebrow")}
+        title={name("profile.heading")}
         description="Здесь виден реальный результат: решённые задачи, самостоятельные попытки и освоенные темы."
       >
         <Link
           className="button button-primary"
           href={nextTask ? taskHref(nextTask.id) : "/"}
         >
-          {nextTask ? "К практике" : "Повторить задания"}
+          {nextTask ? name("profile.practice") : name("profile.repeat")}
           <ArrowRight size={16} />
         </Link>
       </PageHeading>
@@ -107,24 +109,24 @@ export default function ProfilePage() {
               {stats.percent}
               <small>%</small>
             </strong>
-            <span>курса пройдено</span>
+            <span>{name("profile.percent")}</span>
           </div>
         </div>
         <div>
-          <span className="eyebrow">ПРАКТИКУМ ПО SQL</span>
+          <span className="eyebrow">{name("profile.course")}</span>
           <h2>
             {stats.completed === 15
-              ? "Все задачи решены. Отличная работа!"
+              ? name("profile.completeHeading")
               : stats.completed
-                ? "Хорошее начало. Продолжай."
-                : "Всё начинается с первого запроса."}
+                ? name("profile.startedHeading")
+                : name("profile.startHeading")}
           </h2>
           <p>
             {stats.completed} из 15 задач решено.{" "}
             {stats.completed === tasks.length
               ? "Можно вернуться к сложным темам и попробовать другой способ решения."
-              : stats.completed
-                ? "Следующий шаг — " + nextTask?.title.toLowerCase() + "."
+              : stats.completed && nextTask
+                ? `${name("profile.nextTask")} — ${name(`task.${nextTask.id}`)}.`
                 : "Выбери задачу, запусти запрос и проверь решение."}
           </p>
         </div>
@@ -137,27 +139,27 @@ export default function ProfilePage() {
             {stats.completed}
             <small>/ 15</small>
           </strong>
-          <span>решено задач</span>
+          <span>{name("profile.solved")}</span>
         </div>
         <div>
           <Target size={21} />
           <strong>{stats.independent}</strong>
-          <span>без подсказок</span>
+          <span>{name("profile.independent")}</span>
         </div>
         <div>
           <Flame size={21} />
           <strong>{stats.attempts}</strong>
-          <span>проверок решений</span>
+          <span>{name("profile.checks")}</span>
         </div>
         <div>
           <Pencil size={21} />
           <strong>{stats.runs}</strong>
-          <span>запусков запросов</span>
+          <span>{name("profile.runs")}</span>
         </div>
       </div>
       <div className="section-title">
         <div>
-          <h2>Навыки по модулям</h2>
+          <h2>{name("profile.skills")}</h2>
           <p>
             Тема засчитывается после решения задач, а не после просмотра
             объяснения.
@@ -180,7 +182,7 @@ export default function ProfilePage() {
                     String(module.id).padStart(2, "0")
                   )}
                 </span>
-                <h3>{module.title}</h3>
+                <h3>{name(`module.${module.id}`)}</h3>
                 <strong>{completed}/3</strong>
               </div>
               <div className="progress-track">
@@ -188,7 +190,7 @@ export default function ProfilePage() {
               </div>
               {moduleTasks.map((task) => (
                 <Link key={task.id} href={taskHref(task.id)}>
-                  <span>{task.title}</span>
+                  <span>{name(`task.${task.id}`)}</span>
                   <Status
                     progress={state.progress[task.id]}
                     started={isTaskStarted(state, task.id)}
@@ -201,7 +203,7 @@ export default function ProfilePage() {
       </div>
       <section className="settings-card">
         <div>
-          <h2>Учебный профиль</h2>
+          <h2>{name("profile.settings")}</h2>
           <p>
             {active
               ? "Прогресс этого аккаунта хранится отдельно в данном браузере."
@@ -210,11 +212,11 @@ export default function ProfilePage() {
           </p>
           {!active && (
             <Link href="/account/" className="text-link">
-              Вход и регистрация <ArrowRight size={14} />
+              {name("account.entry")} <ArrowRight size={14} />
             </Link>
           )}
           <label className="profile-name-label">
-            Как к тебе обращаться
+            {name("profile.name")}
             <input
               value={state.name}
               maxLength={40}
@@ -234,7 +236,7 @@ export default function ProfilePage() {
         <div className="settings-actions">
           <button className="button button-secondary" onClick={exportProgress}>
             <Download size={16} />
-            Экспорт прогресса
+            {name("profile.export")}
           </button>
           <button
             className="button button-secondary"
@@ -242,14 +244,14 @@ export default function ProfilePage() {
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
-            {loading ? "Читаем файл…" : "Импорт прогресса"}
+            {loading ? name("profile.reading") : name("profile.import")}
           </button>
           <input
             ref={input}
             type="file"
             accept=".json,application/json"
             hidden
-            aria-label="Файл прогресса"
+            aria-label={name("profile.file")}
             onChange={(event) => loadFile(event.target.files?.[0])}
           />
           <button
@@ -258,7 +260,7 @@ export default function ProfilePage() {
             onClick={() => setModal("reset")}
           >
             <RotateCcw size={14} />
-            Сбросить SQL-прогресс
+            {name("profile.resetSql")}
           </button>
         </div>
       </section>
@@ -270,18 +272,18 @@ export default function ProfilePage() {
       {backup && (
         <button className="text-link" onClick={() => setModal("undo")}>
           <RotateCcw size={14} />
-          Вернуть прогресс до последней замены
+          {name("profile.undo")}
         </button>
       )}
       {modal === "undo" && backup && (
-        <Modal title="Отменить последнюю замену?" onClose={closeModal}>
+        <Modal title={name("profile.undoTitle")} onClose={closeModal}>
           <p>
             Вернём состояние до импорта или сброса. Изменения, сделанные после
             него, будут заменены. Эта отмена доступна, пока открыта страница.
           </p>
           <div className="modal-actions">
             <button className="button button-secondary" onClick={closeModal}>
-              Отмена
+              {name("common.cancel")}
             </button>
             <button
               className="button button-primary"
@@ -292,13 +294,13 @@ export default function ProfilePage() {
                 setNotice("Предыдущий прогресс возвращён.");
               }}
             >
-              Вернуть прогресс
+              {name("profile.restore")}
             </button>
           </div>
         </Modal>
       )}
       {modal === "reset" && (
-        <Modal title="Начать практикум заново?" onClose={() => setModal(null)}>
+        <Modal title={name("profile.resetTitle")} onClose={() => setModal(null)}>
           <p>
             Будут удалены SQL-решения, черновики, история и заметки в этом
             браузере. Сначала можно экспортировать прогресс. Данные старой
@@ -309,13 +311,13 @@ export default function ProfilePage() {
               className="button button-secondary"
               onClick={exportProgress}
             >
-              Скачать копию
+              {name("profile.downloadCopy")}
             </button>
             <button
               className="button button-secondary"
               onClick={() => setModal(null)}
             >
-              Отмена
+              {name("common.cancel")}
             </button>
             <button
               className="button button-danger"
@@ -326,13 +328,13 @@ export default function ProfilePage() {
                 setNotice("SQL-прогресс сброшен.");
               }}
             >
-              Сбросить прогресс
+              {name("profile.reset")}
             </button>
           </div>
         </Modal>
       )}
       {modal === "import" && imported && (
-        <Modal title="Загрузить прогресс из файла?" onClose={closeModal}>
+        <Modal title={name("profile.importTitle")} onClose={closeModal}>
           <p>
             В файле: {getStats(imported).completed} решённых задач. Текущие
             SQL-сохранения будут заменены. Перед заменой можно экспортировать
@@ -343,10 +345,10 @@ export default function ProfilePage() {
               className="button button-secondary"
               onClick={exportProgress}
             >
-              Скачать копию
+              {name("profile.downloadCopy")}
             </button>
             <button className="button button-secondary" onClick={closeModal}>
-              Отмена
+              {name("common.cancel")}
             </button>
             <button
               className="button button-primary"
@@ -358,7 +360,7 @@ export default function ProfilePage() {
                 setNotice("Прогресс восстановлен.");
               }}
             >
-              Восстановить
+              {name("common.restore")}
             </button>
           </div>
         </Modal>

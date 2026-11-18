@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import SqlShell from "./components/sql/shell";
+import { staticNames } from "./lib/site-names/registry";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/manrope";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "CodeProof SQL — практикум по анализу данных",
-    template: "%s · CodeProof SQL",
+    default: `${staticNames["site.name"]} — ${staticNames["site.tabTagline"]}`,
+    template: `%s · ${staticNames["site.name"]}`,
   },
   description:
     "15 задач на данных интернет-магазина. Пишите и запускайте SQL, изучайте таблицы, проверяйте решения и сохраняйте прогресс.",

@@ -1,9 +1,11 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X, Check, Circle, ArrowUpRight, Database, Table2 } from "lucide-react";
 import Link from "next/link";
 import type { Cell } from "@/app/lib/sql/schema";
 import { taskHref, type Task } from "@/app/lib/sql/course";
+import { difficultyNames } from "@/app/lib/site-names/registry";
 import type { TaskProgress } from "@/app/lib/sql/progress";
 
 export function Status({
@@ -13,11 +15,12 @@ export function Status({
   progress?: TaskProgress;
   started?: boolean;
 }) {
+  const name = useSiteNames();
   if (progress?.solvedAt)
     return (
       <span className="status status-done">
         <Check size={13} />
-        Решено
+        {name("common.solved")}
       </span>
     );
   if (
@@ -29,13 +32,13 @@ export function Status({
   )
     return (
       <span className="status status-started">
-        <span className="status-dot" />В процессе
+        <span className="status-dot" />{name("common.inProgress")}
       </span>
     );
   return (
     <span className="status status-idle">
       <Circle size={12} />
-      Не начато
+      {name("common.notStarted")}
     </span>
   );
 }
@@ -51,6 +54,7 @@ export function TaskLink({
   progress?: TaskProgress;
   started?: boolean;
 }) {
+  const name = useSiteNames();
   return (
     <Link className="task-row" href={taskHref(task.id)}>
       <span className={"task-number " + (progress?.solvedAt ? "done" : "")}>
@@ -61,7 +65,7 @@ export function TaskLink({
         )}
       </span>
       <span className="task-row-main">
-        <strong>{task.title}</strong>
+        <strong>{name(`task.${task.id}`)}</strong>
         <span>{task.tags.join(" · ")}</span>
       </span>
       <span
@@ -77,9 +81,9 @@ export function TaskLink({
         <i />
         <i />
         <i />
-        <span>{task.difficulty}</span>
+        <span>{name(difficultyNames[task.difficulty])}</span>
       </span>
-      <span className="task-time">{task.minutes} мин</span>
+      <span className="task-time">{task.minutes} {name("common.minutes")}</span>
       <Status progress={progress} started={started} />
       <ArrowUpRight size={16} className="row-arrow" />
     </Link>
@@ -97,18 +101,19 @@ export function DataTable({
   max?: number;
   caption?: string;
 }) {
+  const name = useSiteNames();
   return (
     <div
       className="data-scroll"
       tabIndex={0}
       role="region"
-      aria-label={caption || "Таблица результатов"}
+      aria-label={caption || name("common.resultTable")}
     >
       <table className="data-table">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr>
-            <th scope="col" className="row-index" aria-label="Номер строки">
+            <th scope="col" className="row-index" aria-label={name("common.rowNumber")}>
               #
             </th>
             {columns.map((column, i) => (
@@ -141,7 +146,7 @@ export function DataTable({
       {rows.length === 0 && (
         <div className="table-empty">
           <Table2 size={25} />
-          <strong>Нет строк</strong>
+          <strong>{name("common.noRows")}</strong>
           <span>
             Запрос выполнен. Ни одна строка не соответствует условиям.
           </span>
@@ -160,6 +165,7 @@ export function Modal({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const name = useSiteNames();
   const ref = useRef<HTMLDialogElement>(null);
   const headingId = useId();
   useEffect(() => {
@@ -190,7 +196,7 @@ export function Modal({
     >
       <div className="modal-heading">
         <h2 id={headingId}>{title}</h2>
-        <button className="icon-button" onClick={onClose} aria-label="Закрыть">
+        <button className="icon-button" onClick={onClose} aria-label={name("common.close")}>
           <X size={20} />
         </button>
       </div>
@@ -223,10 +229,11 @@ export function PageHeading({
 }
 
 export function DatabaseBadge() {
+  const name = useSiteNames();
   return (
     <span className="database-badge">
       <Database size={13} />
-      <span>shop.db</span>
+      <span>{name("common.databaseFile")}</span>
       <i />
     </span>
   );

@@ -1,16 +1,18 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useState } from "react";
 import { Download, NotebookPen } from "lucide-react";
 import { useStudy, updateStudy } from "@/app/lib/sql/store";
 import { PageHeading, downloadText } from "@/app/components/sql/ui";
 export default function NotesPage() {
+  const name = useSiteNames();
   const state = useStudy();
   const [notice, setNotice] = useState("");
   return (
     <div className="page">
       <PageHeading
-        eyebrow="ЛИЧНЫЙ КОНСПЕКТ"
-        title="Запиши то, что пригодится."
+        eyebrow={name("notes.eyebrow")}
+        title={name("notes.heading")}
         description="Наблюдения, полезные запросы и ошибки, к которым хочется вернуться."
       >
         <button
@@ -28,7 +30,7 @@ export default function NotesPage() {
           }}
         >
           <Download size={15} />
-          Скачать заметки
+          {name("notes.download")}
         </button>
       </PageHeading>
       {notice && (
@@ -39,15 +41,15 @@ export default function NotesPage() {
       <div className="notes-card">
         <div>
           <NotebookPen size={17} />
-          <strong>Мой SQL-конспект</strong>
+          <strong>{name("notes.editor")}</strong>
           <span>
             {state.storageIssue
-              ? "Только в этой вкладке"
-              : "Сохраняется автоматически"}
+              ? name("notes.temporary")
+              : name("notes.autoSave")}
           </span>
         </div>
         <textarea
-          aria-label="Заметки по SQL"
+          aria-label={name("notes.input")}
           maxLength={50000}
           value={state.notes}
           onChange={(event) =>

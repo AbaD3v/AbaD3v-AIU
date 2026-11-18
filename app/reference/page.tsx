@@ -1,4 +1,5 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, BookOpen, Search } from "lucide-react";
@@ -6,36 +7,37 @@ import { tasks, taskHref } from "@/app/lib/sql/course";
 import { PageHeading } from "@/app/components/sql/ui";
 
 export default function ReferencePage() {
+  const name = useSiteNames();
   const [search, setSearch] = useState("");
   const selected = tasks.filter((task) =>
-    (task.tags.join(" ") + task.title + task.theory)
+    (`${task.tags.join(" ")} ${name(`task.${task.id}`)} ${task.theory}`)
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
   return (
     <div className="page reference-page">
       <PageHeading
-        eyebrow="ОБЪЯСНЕНИЯ И ПРИМЕРЫ"
-        title="SQL под рукой."
+        eyebrow={name("reference.eyebrow")}
+        title={name("reference.heading")}
         description="Короткая теория, рабочие примеры и задания, в которых можно сразу попробовать."
       />
       <div className="reference-toolbar">
         <label className="search-input">
           <Search size={17} />
           <input
-            aria-label="Поиск в справочнике"
+            aria-label={name("reference.search")}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Например: JOIN, NULL или группировка"
+            placeholder={name("reference.searchPlaceholder")}
           />
         </label>
         <span>
           <BookOpen size={15} />
-          Диалект SQLite
+          {name("reference.dialect")}
         </span>
       </div>
       <div className="query-order">
-        <span>ПОРЯДОК ЗАПИСИ ЗАПРОСА</span>
+        <span>{name("reference.order")}</span>
         <div>
           {[
             "SELECT",
@@ -68,11 +70,11 @@ export default function ReferencePage() {
               </span>
               <span className="reference-tags">{task.tags.join(" / ")}</span>
             </div>
-            <h2>{task.title}</h2>
+            <h2>{name(`task.${task.id}`)}</h2>
             <p>{task.theory}</p>
             <pre className="code-snippet">{task.example}</pre>
             <Link className="text-link" href={taskHref(task.id)}>
-              Попробовать на задаче
+              {name("reference.tryTask")}
               <ArrowUpRight size={15} />
             </Link>
           </article>
@@ -81,13 +83,13 @@ export default function ReferencePage() {
       {!selected.length && (
         <div className="empty-state">
           <Search size={28} />
-          <h3>Ничего не найдено</h3>
+          <h3>{name("reference.empty")}</h3>
           <p>Попробуйте название SQL-команды или другую формулировку.</p>
           <button
             className="button button-secondary"
             onClick={() => setSearch("")}
           >
-            Очистить поиск
+            {name("common.clearSearch")}
           </button>
         </div>
       )}

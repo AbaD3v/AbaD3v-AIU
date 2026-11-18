@@ -1,25 +1,26 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight, Check, History, Search, X } from "lucide-react";
 import { useStudy } from "@/app/lib/sql/store";
-import { getTask } from "@/app/lib/sql/course";
 import { PageHeading } from "@/app/components/sql/ui";
 import RestoreQuery from "@/app/components/sql/restore-query";
 
 export default function HistoryPage() {
+  const name = useSiteNames();
   const state = useStudy();
   const [search, setSearch] = useState("");
   const entries = state.history.filter((entry) =>
-    (entry.sql + " " + getTask(entry.taskId)?.title)
+    (entry.sql + " " + name(`task.${entry.taskId}`))
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
   return (
     <div className="page">
       <PageHeading
-        eyebrow="ТВОИ ПОПЫТКИ"
-        title="У каждого решения есть история."
+        eyebrow={name("history.eyebrow")}
+        title={name("history.heading")}
         description="Последние 100 запусков и проверок. Верни любой запрос в редактор и продолжи работу."
       />
       <label className="search-input history-search">
@@ -27,8 +28,8 @@ export default function HistoryPage() {
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Поиск по запросу или заданию"
-          aria-label="Поиск в истории"
+          placeholder={name("history.searchPlaceholder")}
+          aria-label={name("history.search")}
         />
       </label>
       {entries.length ? (
@@ -44,11 +45,11 @@ export default function HistoryPage() {
                   {entry.success ? <Check size={14} /> : <X size={14} />}
                   {entry.action === "check"
                     ? entry.success
-                      ? "Решение верное"
-                      : "Проверка не пройдена"
+                      ? name("history.checkPassed")
+                      : name("history.checkFailed")
                     : entry.success
-                      ? "Запрос выполнен"
-                      : "Ошибка запроса"}
+                      ? name("common.querySuccess")
+                      : name("history.queryError")}
                 </span>
                 <time>
                   {new Date(entry.date).toLocaleString("ru-RU", {
@@ -59,7 +60,7 @@ export default function HistoryPage() {
                   })}
                 </time>
               </div>
-              <h2>{getTask(entry.taskId)?.title}</h2>
+              <h2>{name(`task.${entry.taskId}`)}</h2>
               <pre className="code-snippet">{entry.sql}</pre>
               {entry.error && (
                 <p className="history-error-text">{entry.error}</p>
@@ -74,7 +75,7 @@ export default function HistoryPage() {
                   navigate
                   className="text-link"
                 >
-                  Вернуть в редактор
+                  {name("history.restore")}
                 </RestoreQuery>
               </div>
             </article>
@@ -83,14 +84,14 @@ export default function HistoryPage() {
       ) : (
         <div className="empty-state">
           <History size={35} />
-          <h2>{search ? "Попытки не найдены" : "Первый запрос ещё впереди"}</h2>
+          <h2>{search ? name("history.noMatches") : name("history.empty")}</h2>
           <p>
             {search
               ? "Измените поисковый запрос."
               : "Запускай SQL в заданиях — здесь появятся запросы и результаты проверок."}
           </p>
           <Link href="/" className="button button-primary">
-            Открыть практикум
+            {name("history.openPractice")}
             <ArrowUpRight size={16} />
           </Link>
         </div>

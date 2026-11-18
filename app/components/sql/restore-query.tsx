@@ -1,4 +1,5 @@
 "use client";
+import { useSiteNames } from "@/app/lib/site-names/store";
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
@@ -10,7 +11,7 @@ export default function RestoreQuery({
   taskId,
   sql,
   navigate = false,
-  children = "В редактор",
+  children,
   className = "text-button",
 }: {
   taskId: string;
@@ -19,6 +20,7 @@ export default function RestoreQuery({
   children?: ReactNode;
   className?: string;
 }) {
+  const name = useSiteNames();
   const state = useStudy();
   const router = useRouter();
   const [confirm, setConfirm] = useState(false);
@@ -44,16 +46,16 @@ export default function RestoreQuery({
           } else restore();
         }}
       >
-        {children}
+        {children ?? name("common.toEditor")}
         <ArrowUpRight size={14} />
       </button>
       {confirm && (
         <Modal
-          title="Заменить текущий черновик?"
+          title={name("common.replaceDraft")}
           onClose={() => setConfirm(false)}
         >
           <p>
-            В задании «{getTask(taskId)!.title}» уже есть другой запрос. Можно
+            В задании «{name(`task.${taskId}`)}» уже есть другой запрос. Можно
             скачать его перед заменой. История запусков сохранится.
           </p>
           <pre className="code-snippet solution-code">{draft}</pre>
@@ -63,7 +65,7 @@ export default function RestoreQuery({
               className="button button-secondary"
               onClick={() => setConfirm(false)}
             >
-              Отмена
+              {name("common.cancel")}
             </button>
             <button
               className="button button-secondary"
@@ -78,10 +80,10 @@ export default function RestoreQuery({
                 }
               }}
             >
-              Скачать черновик
+              {name("common.downloadDraft")}
             </button>
             <button className="button button-primary" onClick={restore}>
-              Заменить запрос
+              {name("common.replaceQuery")}
             </button>
           </div>
         </Modal>
