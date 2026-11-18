@@ -6,6 +6,7 @@ import { ArrowRight, Search, ShieldCheck, UsersRound } from "lucide-react";
 import { Modal, PageHeading } from "@/app/components/sql/ui";
 import QuizEditor from "@/app/components/sql/quiz-editor";
 import SiteNamesEditor from "@/app/components/sql/site-names-editor";
+import StudentProgress from "./student-progress";
 import {
   setStudentBlocked,
   useAccounts,
@@ -20,6 +21,7 @@ export default function AdminPage() {
   const { active, ready, students } = useAccounts();
   const isAdmin = active?.role === "admin";
   const [search, setSearch] = useState("");
+  const [progressId, setProgressId] = useState<string | null>(null);
   const [target, setTarget] = useState<Account | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -60,6 +62,7 @@ export default function AdminPage() {
     `${student.name} ${student.login}`.toLocaleLowerCase("ru").includes(query),
   );
   const blocked = students.filter((student) => student.blocked).length;
+  const selectedStudent = students.find((student) => student.id === progressId);
 
   function toggleAccess(student: Account) {
     setError("");
@@ -174,6 +177,13 @@ export default function AdminPage() {
                       <td>
                         <button
                           className="button button-secondary"
+                          onClick={() => setProgressId(student.id)}
+                        >
+                          {name("nav.viewProgress")}
+                          <span className="sr-only"> для {student.login}</span>
+                        </button>{" "}
+                        <button
+                          className="button button-secondary"
                           onClick={() => {
                             setError("");
                             setTarget(student);
@@ -201,6 +211,9 @@ export default function AdminPage() {
       </section>
       <SiteNamesEditor key={active.id} />
       <QuizEditor key={active.id} adminId={active.id} />
+      {selectedStudent && (
+        <StudentProgress student={selectedStudent} onClose={() => setProgressId(null)} />
+      )}
       {target && (
         <Modal
           title={target.blocked ? name("admin.restoreAccessTitle") : name("admin.suspendAccessTitle")}
