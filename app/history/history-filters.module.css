@@ -41,6 +41,39 @@
   font-size: 13px;
 }
 
+.chips {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 10px;
+  color: var(--green);
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+}
+
+.chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip svg {
+  flex-shrink: 0;
+}
+
 @media (max-width: 680px) {
   .filters {
     grid-template-columns: minmax(0, 1fr);
@@ -53,5 +86,9 @@
 
   .summary button {
     min-height: 44px;
+  }
+
+  .chips:not(:empty) {
+    flex-basis: 100%;
   }
 }

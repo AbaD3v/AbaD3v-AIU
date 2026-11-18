@@ -2,19 +2,43 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight, Check, History, Search, X } from "lucide-react";
-import { useStudy } from "@/app/lib/sql/store";
+import { useAccounts } from "@/app/lib/accounts/store";
+import { getStudyScope, useStudy } from "@/app/lib/sql/store";
 import { getTask, tasks } from "@/app/lib/sql/course";
 import { PageHeading } from "@/app/components/sql/ui";
 import RestoreQuery from "@/app/components/sql/restore-query";
+import { actionOptions, defaultFilters, readFilters, resultOptions, saveFilters } from "./history-filters";
 import styles from "./history-filters.module.css";
 
-const defaultFilters = { search: "", taskId: "", action: "", result: "" };
-
 export default function HistoryPage() {
+  const { ready, error } = useAccounts();
+  const storageKey = ready && !error ? `${getStudyScope()}.history-filters.v1` : null;
+  return (
+    <div className="page">
+      <PageHeading
+        eyebrow="ТВОИ ПОПЫТКИ"
+        title="У каждого решения есть история."
+        description="Последние 100 запусков и проверок. Верни любой запрос в редактор и продолжи работу."
+      />
+      {ready ? (
+        <HistoryForScope key={storageKey} storageKey={storageKey} />
+      ) : (
+        <p role="status">Загружаем историю…</p>
+      )}
+    </div>
+  );
+}
+
+function HistoryForScope({ storageKey }: { storageKey: string | null }) {
   const state = useStudy();
-  const [filters, setFilters] = useState(defaultFilters);
+  const [filters, setFilters] = useState(() => readFilters(storageKey));
   const query = filters.search.trim().toLowerCase();
-  const hasFilters = Object.values(filters).some(Boolean);
+  const chips = [
+    { key: "taskId", label: getTask(filters.taskId)?.title },
+    { key: "action", label: actionOptions.find((option) => option.value === filters.action)?.label },
+    { key: "result", label: resultOptions.find((option) => option.value === filters.result)?.label },
+    { key: "search", label: filters.search && `Поиск: «${filters.search}»` },
+  ] as const;
   const entries = state.history.filter((entry) => {
     const result = entry.success ? "success" : "failure";
     if (filters.taskId && filters.taskId !== entry.taskId) return false;
@@ -27,17 +51,17 @@ export default function HistoryPage() {
     );
   });
 
-  function setFilter(key: keyof typeof defaultFilters, value: string) {
-    setFilters((previous) => ({ ...previous, [key]: value }));
+  function updateFilters(next: typeof filters) {
+    setFilters(next);
+    saveFilters(storageKey, next);
+  }
+
+  function setFilter(key: keyof typeof filters, value: string) {
+    updateFilters({ ...filters, [key]: value });
   }
 
   return (
-    <div className="page">
-      <PageHeading
-        eyebrow="ТВОИ ПОПЫТКИ"
-        title="У каждого решения есть история."
-        description="Последние 100 запусков и проверок. Верни любой запрос в редактор и продолжи работу."
-      />
+    <>
       <div className={styles.filters}>
         <label className={`search-input ${styles.search}`}>
           <Search size={17} aria-hidden="true" />
@@ -70,8 +94,9 @@ export default function HistoryPage() {
             onChange={(event) => setFilter("action", event.target.value)}
           >
             <option value="">Все попытки</option>
-            <option value="run">Запуск SQL</option>
-            <option value="check">Проверка решения</option>
+            {actionOptions.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </select>
         </label>
         <label className={styles.field}>
@@ -81,18 +106,33 @@ export default function HistoryPage() {
             onChange={(event) => setFilter("result", event.target.value)}
           >
             <option value="">Все результаты</option>
-            <option value="success">Успешные</option>
-            <option value="failure">Неудачные</option>
+            {resultOptions.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </select>
         </label>
       </div>
       <div className={styles.summary}>
         <output>Найдено записей: {entries.length}</output>
+        <div className={styles.chips}>
+          {chips.map(({ key, label }) => label && (
+            <button
+              key={key}
+              type="button"
+              className={styles.chip}
+              aria-label={key === "search" ? "Очистить поиск" : `Снять фильтр: ${label}`}
+              onClick={() => setFilter(key, "")}
+            >
+              <span>{label}</span>
+              <X size={14} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className="button button-secondary"
-          disabled={!hasFilters}
-          onClick={() => setFilters(defaultFilters)}
+          disabled={!chips.some((chip) => chip.label)}
+          onClick={() => updateFilters(defaultFilters)}
         >
           Сбросить фильтры
         </button>
@@ -165,6 +205,6 @@ export default function HistoryPage() {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
