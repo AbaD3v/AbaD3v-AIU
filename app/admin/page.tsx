@@ -209,8 +209,8 @@ export default function AdminPage() {
           </p>
         )}
       </section>
-      <SiteNamesEditor key={active.id} />
-      <QuizEditor key={active.id} adminId={active.id} />
+      <SiteNamesEditor key={`site-names-${active.id}`} />
+      <QuizEditor key={`quiz-${active.id}`} adminId={active.id} />
       {selectedStudent && (
         <StudentProgress student={selectedStudent} onClose={() => setProgressId(null)} />
       )}

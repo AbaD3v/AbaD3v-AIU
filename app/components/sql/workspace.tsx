@@ -596,9 +596,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
           {quizQuestions.length > 0 && (
             <div className={quizEntryStyles.entry} aria-live="polite">
               <p>
-                {progress.solvedAt
-                  ? "Задание решено. Закрепите тему в коротком тесте."
-                  : "Тест откроется после успешной проверки решения."}
+                {name(progress.solvedAt ? "quiz.entryReady" : "quiz.entryLocked")}
               </p>
               {progress.solvedAt && (
                 <Link

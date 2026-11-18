@@ -241,6 +241,8 @@ export const staticNames = {
   "quiz.retry": "Новая попытка",
   "quiz.next": "Следующий вопрос",
   "quiz.open": "Закрепить тему",
+  "quiz.entryReady": "Задание решено. Закрепите тему в коротком тесте.",
+  "quiz.entryLocked": "Тест откроется после успешной проверки решения.",
   "quiz.backToTask": "Вернуться к заданию",
   "quiz.heading": "Тест по SQL",
   "quiz.toTask": "Перейти к заданию",
