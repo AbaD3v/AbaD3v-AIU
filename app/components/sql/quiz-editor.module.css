@@ -27,13 +27,16 @@
 .correct { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
 .correct input { accent-color: var(--green); width: 18px; height: 18px; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.preview { padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
+.preview h3 { margin-bottom: 14px; }
+.previewBody { display: grid; gap: 14px; }
 .options > button, .remove { justify-self: start; }
 .remove { color: #9b362a; }
 .editor button:disabled { opacity: .45; cursor: not-allowed; }
 .empty { padding: 14px; border-radius: 8px; background: var(--soft); }
 .editor ul { padding-left: 20px; list-style: disc; }
 @media (max-width: 640px) {
-  .question { padding: 12px; }
+  .question, .preview { padding: 12px; }
   .option { grid-template-columns: minmax(0, 1fr) auto; }
   .correct { grid-column: 1 / -1; }
 }
