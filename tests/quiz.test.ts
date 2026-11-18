@@ -35,7 +35,14 @@ test("quiz overrides persist, replace deleted questions, disable quizzes and req
     return JSON.parse(result.stdout);
   };
   try {
-    for (const task of tasks) assert.ok(getQuizQuestions(task.id).length > 0);
+    assert.equal(tasks.length, 15);
+    for (const task of tasks) {
+      const defaults = getQuizQuestions(task.id);
+      assert.ok(defaults.length >= 2, task.id);
+      assert.equal(defaults[0].id, `${task.id}-query`);
+      assert.ok(defaults.some((q) => q.id === `${task.id}-understanding` && q.explanation.length > 0));
+      assert.deepEqual(validateQuizQuestions(defaults), defaults);
+    }
     const taskId = tasks[0].id;
     const source = getQuizQuestions(taskId);
     const edited = [{ ...source[0], id: "edited", prompt: "Правка администратора", correctIndex: 1 },
@@ -53,6 +60,9 @@ test("quiz overrides persist, replace deleted questions, disable quizzes and req
     browser.localStorage = localStorage;
     saveQuizQuestions(taskId, []);
     assert.deepEqual(getQuizQuestions(taskId), []);
+    browser.localStorage = { ...localStorage, getItem: () => { throw new Error("blocked"); } };
+    assert.deepEqual(getQuizQuestions(taskId), []);
+    browser.localStorage = localStorage;
     assert.deepEqual(readAfterReload(taskId), []);
     assert.equal(records.get(`codeproof.quiz.v1.${taskId}`), "[]");
     assert.ok(getQuizQuestions(tasks[1].id).length > 0);

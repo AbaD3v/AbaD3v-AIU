@@ -6,7 +6,10 @@
 .message p { margin: 8px 0 0; line-height: 1.7; }
 .message small { color: #52645e; }
 .answer { justify-self: end; background: #e9f5ef; border-radius: 18px 18px 4px 18px; }
-.controls { margin: 24px 0; }
+.controls { display: grid; gap: 12px; margin: 24px 0; }
+.review { display: grid; gap: 16px; margin: 28px 0; }
+.review h2, .review h3 { margin: 0; }
+.review h3 { font-size: 1rem; line-height: 1.6; }
 .options { display: grid; gap: 10px; border: 0; padding: 0; min-width: 0; }
 .options legend { margin-bottom: 14px; font-weight: 600; }
 .option { display: block; width: 100%; padding: 16px; text-align: left; border: 1px solid #c6d7cf; border-radius: 12px; background: #fff; color: #203b30; cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.6; }

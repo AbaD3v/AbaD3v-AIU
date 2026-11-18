@@ -14,14 +14,34 @@ export type QuizQuestion = {
 
 const prefix = "codeproof.quiz.v1.";
 const empty: QuizQuestion[] = [];
+// Defaults only: a saved administrator replacement remains authoritative.
+const understanding: Record<string, [string, string[], number, string]> = {
+  "first-query": ["Гарантирует ли SELECT name, price FROM products порядок строк по цене?", ["Да, по возрастанию", "Нет, нужен ORDER BY", "Да, по убыванию"], 1, "Без ORDER BY порядок строк не гарантирован. SELECT задаёт только выбранные столбцы."],
+  "premium-products": ["Какой товар пройдёт фильтр price > 100 AND is_active = 1?", ["Активный с ценой 100", "Неактивный с ценой 150", "Активный с ценой 150"], 2, "Оба условия должны выполняться одновременно; цена 100 исключена строгим сравнением."],
+  "out-of-stock": ["Что изменится, если заменить AND на OR в stock = 0 AND is_active = 1?", ["Попадут также активные товары с ненулевым остатком", "Ничего", "Останутся только неактивные товары"], 0, "OR достаточно одного условия: он включит и все активные товары, и неактивные с нулевым остатком."],
+  "top-prices": ["У активных товаров id 7 и id 3 одинаковая цена. Кто будет раньше при ORDER BY price DESC, id ASC?", ["id 7", "id 3", "Порядок не определён"], 1, "Второй ключ id ASC разрешает равенство цен: меньший id идёт первым."],
+  "customer-cities": ["Что произойдёт при добавлении name к SELECT DISTINCT city?", ["Города по-прежнему всегда уникальны", "DISTINCT перестанет работать", "Будут уникальны пары city, name; город может повторяться"], 2, "DISTINCT применяется ко всей выбранной строке, а не только к первому столбцу."],
+  "category-overview": ["В категории два активных товара по 100 и 200 и неактивный по 900. Какова AVG(price) после WHERE is_active = 1?", ["150", "400", "900"], 0, "WHERE исключает неактивный товар до GROUP BY и вычисления среднего."],
+  "orders-and-customers": ["Почему JOIN должен использовать o.customer_id = c.id, а не o.id = c.id?", ["Так запрос автоматически сортирует заказы", "customer_id ссылается на покупателя, а o.id обозначает заказ", "Оба условия всегда равнозначны"], 1, "Идентификатор заказа не является ссылкой на покупателя. Связь задаёт orders.customer_id."],
+  "order-totals": ["У заказа две позиции: 2 × 100 и 3 × 50. Что даст SUM(quantity * unit_price) в группе order_id?", ["150", "500", "350"], 2, "Сначала вычисляется стоимость каждой позиции, затем 200 и 150 складываются внутри заказа."],
+  "customers-without-orders": ["Почему после LEFT JOIN orders используется o.id IS NULL?", ["Так обнаруживаются покупатели без соответствующего заказа", "Это выбирает только отменённые заказы", "Проверка o.id = NULL даст тот же результат"], 0, "При отсутствии заказа столбцы правой таблицы равны NULL. Для проверки нужен IS NULL, а не = NULL."],
+  "product-revenue": ["Почему выручку группируют по p.id, p.name, а не только по p.name?", ["Чтобы включить отменённые заказы", "Разные товары могут иметь одинаковое название", "Чтобы использовать текущую цену каталога"], 1, "Группировка по устойчивому id не смешивает продажи разных товаров с одинаковыми названиями."],
+  "repeat-customers": ["У покупателя один completed и один cancelled заказ. Пройдёт ли он HAVING COUNT(*) >= 2 после фильтра completed?", ["Да, всего два заказа", "Да, HAVING учитывает все статусы", "Нет, в группе остался только один заказ"], 2, "WHERE отбирает completed до группировки; HAVING проверяет количество оставшихся заказов."],
+  "monthly-revenue": ["Почему группировка использует YYYY-MM, а не только номер месяца?", ["Чтобы не объединять продажи одного месяца разных лет", "Чтобы добавить месяцы без продаж", "Чтобы включить отменённые заказы"], 0, "Год в ключе группы разделяет, например, январь 2025 и январь 2026."],
+  "unpaid-orders": ["У неотменённого заказа есть failed и success платежи. Попадёт ли он в заказы без успешной оплаты?", ["Да, есть failed", "Нет, существует хотя бы один success", "Да, если failed был первым"], 1, "NOT EXISTS проверяет отсутствие любого успешного платежа; одна успешная оплата уже исключает заказ."],
+  "payment-audit": ["Что должен вернуть paid_total для completed-заказа без успешных платежей после LEFT JOIN итогов оплат?", ["NULL без замены", "Сумму позиций заказа", "0 благодаря COALESCE"], 2, "LEFT JOIN даёт NULL при отсутствии итогов оплат; COALESCE(p.total, 0) заменяет его нулём для сравнения сумм."],
+  "top-customers": ["У покупателей id 8 и id 2 одинаковый total_spent. Кто будет раньше в топ-3?", ["id 2 благодаря customer_id ASC", "id 8 благодаря total_spent DESC", "Любой: LIMIT сам выбирает порядок"], 0, "При равных суммах второй ключ customer_id ASC задаёт однозначный порядок до LIMIT 3."],
+};
 const initial = new Map<string, QuizQuestion[]>(tasks.map((task, index) => {
   const options = [task.solution, tasks[(index + 1) % tasks.length].solution,
     tasks[(index + 2) % tasks.length].solution];
   const correctIndex = index % options.length;
   [options[0], options[correctIndex]] = [options[correctIndex], options[0]];
+  const [prompt, choices, answer, explanation] = understanding[task.id];
   return [task.id, [{ id: `${task.id}-query`,
     prompt: `Какой запрос выполняет условие задания? ${task.requirement}`,
-    options, correctIndex, explanation: task.explanation }]];
+    options, correctIndex, explanation: task.explanation },
+    { id: `${task.id}-understanding`, prompt, options: choices, correctIndex: answer, explanation }]];
 }));
 const cache = new Map<string, { raw: string | null; questions: QuizQuestion[] }>();
 const listeners = new Set<() => void>();
@@ -56,7 +76,7 @@ export function getQuizQuestions(taskId: string): QuizQuestion[] {
   if (typeof window === "undefined") return empty;
   let raw: string | null;
   try { raw = window.localStorage.getItem(prefix + taskId); }
-  catch { return empty; }
+  catch { return cache.get(taskId)?.questions ?? empty; }
   const previous = cache.get(taskId);
   if (previous && previous.raw === raw) return previous.questions;
   let questions = initial.get(taskId) ?? empty;
