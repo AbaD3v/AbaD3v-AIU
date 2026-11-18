@@ -3,18 +3,34 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight, Check, History, Search, X } from "lucide-react";
 import { useStudy } from "@/app/lib/sql/store";
-import { getTask } from "@/app/lib/sql/course";
+import { getTask, tasks } from "@/app/lib/sql/course";
 import { PageHeading } from "@/app/components/sql/ui";
 import RestoreQuery from "@/app/components/sql/restore-query";
+import styles from "./history-filters.module.css";
+
+const defaultFilters = { search: "", taskId: "", action: "", result: "" };
 
 export default function HistoryPage() {
   const state = useStudy();
-  const [search, setSearch] = useState("");
-  const entries = state.history.filter((entry) =>
-    (entry.sql + " " + getTask(entry.taskId)?.title)
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const [filters, setFilters] = useState(defaultFilters);
+  const query = filters.search.trim().toLowerCase();
+  const hasFilters = Object.values(filters).some(Boolean);
+  const entries = state.history.filter((entry) => {
+    const result = entry.success ? "success" : "failure";
+    if (filters.taskId && filters.taskId !== entry.taskId) return false;
+    if (filters.action && filters.action !== entry.action) return false;
+    if (filters.result && filters.result !== result) return false;
+    return (
+      !query ||
+      entry.sql.toLowerCase().includes(query) ||
+      getTask(entry.taskId)?.title.toLowerCase().includes(query)
+    );
+  });
+
+  function setFilter(key: keyof typeof defaultFilters, value: string) {
+    setFilters((previous) => ({ ...previous, [key]: value }));
+  }
+
   return (
     <div className="page">
       <PageHeading
@@ -22,15 +38,65 @@ export default function HistoryPage() {
         title="У каждого решения есть история."
         description="Последние 100 запусков и проверок. Верни любой запрос в редактор и продолжи работу."
       />
-      <label className="search-input history-search">
-        <Search size={17} />
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Поиск по запросу или заданию"
-          aria-label="Поиск в истории"
-        />
-      </label>
+      <div className={styles.filters}>
+        <label className={`search-input ${styles.search}`}>
+          <Search size={17} aria-hidden="true" />
+          <input
+            type="search"
+            value={filters.search}
+            onChange={(event) => setFilter("search", event.target.value)}
+            placeholder="Поиск по запросу или заданию"
+            aria-label="Поиск в истории"
+          />
+        </label>
+        <label className={styles.field}>
+          Задание
+          <select
+            value={filters.taskId}
+            onChange={(event) => setFilter("taskId", event.target.value)}
+          >
+            <option value="">Все задания</option>
+            {tasks.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.field}>
+          Действие
+          <select
+            value={filters.action}
+            onChange={(event) => setFilter("action", event.target.value)}
+          >
+            <option value="">Все попытки</option>
+            <option value="run">Запуск SQL</option>
+            <option value="check">Проверка решения</option>
+          </select>
+        </label>
+        <label className={styles.field}>
+          Результат
+          <select
+            value={filters.result}
+            onChange={(event) => setFilter("result", event.target.value)}
+          >
+            <option value="">Все результаты</option>
+            <option value="success">Успешные</option>
+            <option value="failure">Неудачные</option>
+          </select>
+        </label>
+      </div>
+      <div className={styles.summary}>
+        <output>Найдено записей: {entries.length}</output>
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={!hasFilters}
+          onClick={() => setFilters(defaultFilters)}
+        >
+          Сбросить фильтры
+        </button>
+      </div>
       {entries.length ? (
         <div className="history-page-list">
           {entries.map((entry) => (
@@ -83,16 +149,20 @@ export default function HistoryPage() {
       ) : (
         <div className="empty-state">
           <History size={35} />
-          <h2>{search ? "Попытки не найдены" : "Первый запрос ещё впереди"}</h2>
+          <h2>
+            {state.history.length ? "Попытки не найдены" : "Первый запрос ещё впереди"}
+          </h2>
           <p>
-            {search
-              ? "Измените поисковый запрос."
+            {state.history.length
+              ? "Измените поиск или сбросьте фильтры."
               : "Запускай SQL в заданиях — здесь появятся запросы и результаты проверок."}
           </p>
-          <Link href="/" className="button button-primary">
-            Открыть практикум
-            <ArrowUpRight size={16} />
-          </Link>
+          {state.history.length === 0 && (
+            <Link href="/" className="button button-primary">
+              Открыть практикум
+              <ArrowUpRight size={16} />
+            </Link>
+          )}
         </div>
       )}
     </div>
