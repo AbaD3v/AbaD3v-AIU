@@ -79,14 +79,28 @@ create policy admin_blocks_students on public.codeproof_profiles for update to a
   using (role = 'student' and (select codeproof_private.is_admin()))
   with check (role = 'student' and (select codeproof_private.is_admin()));
 
+create function codeproof_private.admin_students()
+returns table (id uuid, name text, role text, blocked boolean, login character varying)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id, p.name, p.role, p.blocked, u.email
+  from public.codeproof_profiles p
+  join auth.users u on u.id = p.id
+  where p.role = 'student' and u.email_confirmed_at is not null
+    and (select codeproof_private.is_admin());
+$$;
+
+revoke all on function codeproof_private.admin_students() from public, anon, authenticated;
+grant execute on function codeproof_private.admin_students() to authenticated;
+
 create view public.codeproof_admin_students
-with (security_barrier = true)
+with (security_invoker = true, security_barrier = true)
 as
-select p.id, p.name, p.role, p.blocked, u.email as login
-from public.codeproof_profiles p
-join auth.users u on u.id = p.id
-where p.role = 'student' and u.email_confirmed_at is not null
-  and (select codeproof_private.is_admin());
+select s.id, s.name, s.role, s.blocked, s.login::character varying(255) as login
+from codeproof_private.admin_students() s;
 
 revoke all on table public.codeproof_admin_students from public, anon, authenticated;
 grant select on table public.codeproof_admin_students to authenticated;
@@ -107,13 +121,27 @@ create policy study_owner on public.codeproof_study for all to authenticated
   with check (user_id = (select auth.uid()) and (select codeproof_private.has_access()));
 
 -- Administrators see task progress without access to student notes or query history.
+create function codeproof_private.admin_progress()
+returns table (user_id uuid, progress jsonb)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id, s.state -> 'progress'
+  from public.codeproof_profiles p
+  left join public.codeproof_study s on s.user_id = p.id
+  where p.role = 'student' and (select codeproof_private.is_admin());
+$$;
+
+revoke all on function codeproof_private.admin_progress() from public, anon, authenticated;
+grant execute on function codeproof_private.admin_progress() to authenticated;
+
 create view public.codeproof_admin_progress
-with (security_barrier = true)
+with (security_invoker = true, security_barrier = true)
 as
-select p.id as user_id, s.state -> 'progress' as progress
-from public.codeproof_profiles p
-left join public.codeproof_study s on s.user_id = p.id
-where p.role = 'student' and (select codeproof_private.is_admin());
+select p.user_id, p.progress
+from codeproof_private.admin_progress() p;
 
 revoke all on table public.codeproof_admin_progress from public, anon, authenticated;
 grant select on table public.codeproof_admin_progress to authenticated;
