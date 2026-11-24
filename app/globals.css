@@ -4444,12 +4444,9 @@ select {
   white-space: nowrap;
 }
 .topbar-account:hover { background: var(--soft); }
-.account-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 18px;
-  max-width: 880px;
-  align-items: start;
+.account-page {
+  max-width: 592px;
+  padding-bottom: 32px;
 }
 .account-card {
   padding: 24px;
@@ -4477,7 +4474,7 @@ select {
   color: var(--green-dark);
   font-weight: 700;
 }
-.account-form, .account-guide, .account-signed-in {
+.account-form, .account-signed-in {
   display: grid;
   gap: 14px;
   justify-items: start;
@@ -4508,7 +4505,33 @@ select {
 }
 .account-signed-in { max-width: 510px; }
 .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.account-help, .account-guide small { color: var(--muted); font-size: 13px; }
+.account-help { color: var(--muted); font-size: 13px; }
+.account-guest {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  margin-top: 14px;
+  padding: 9px 14px;
+  border: 1px solid #dbe6d6;
+  border-radius: 12px;
+  background: var(--soft);
+  color: var(--green-dark);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.account-guest:hover { background: #e5efdf; border-color: #90b46d; }
+.account-guest:active { background: #dcebd4; }
+.account-guest-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--green);
+}
 .account-card > .account-help { margin-top: 8px; }
 .account-error { color: #9b362a; font-size: 13px; }
 .account-form .notice-banner, .admin-students .notice-banner { margin: 0; }
@@ -4531,7 +4554,6 @@ select {
 .admin-blocked { color: #943c30; font-weight: 600; }
 .admin-empty { padding: 18px 0; }
 @media (max-width: 680px) {
-  .account-grid { grid-template-columns: 1fr; }
   .account-card { padding: 16px; }
   .admin-stats { gap: 7px; }
   .admin-stats > div { display: grid; gap: 2px; padding: 10px; }

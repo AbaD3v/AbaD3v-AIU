@@ -276,8 +276,7 @@ export const staticNames = {
   "account.wait": "Подождите…",
   "account.register": "Зарегистрироваться",
   "account.signIn": "Войти",
-  "account.roles": "Роли в практикуме",
-  "account.guestPractice": "Открыть практикум как гость",
+  "account.guestPractice": "Продолжить как гость",
   "account.entry": "Вход и регистрация",
 
   "admin.restrictedEyebrow": "АККАУНТЫ",
