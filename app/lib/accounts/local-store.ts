@@ -16,6 +16,7 @@ export type AccountsState = {
   hasAdmin: boolean;
   temporarySession: boolean;
   error: string;
+  accessDenied?: string;
 };
 
 const accountsKey = "codeproof.accounts.v1";

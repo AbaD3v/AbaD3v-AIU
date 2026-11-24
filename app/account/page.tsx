@@ -1,12 +1,16 @@
 "use client";
 import { useSiteNames } from "@/app/lib/site-names/store";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/app/components/sql/ui";
 import { flushStudy } from "@/app/lib/sql/store";
-import { cloudEnabled } from "@/app/lib/supabase/client";
+import {
+  cloudEnabled,
+  dismissEmailConfirmation,
+  readEmailConfirmation,
+} from "@/app/lib/supabase/client";
 import {
   registerStudent,
   registerCloudStudent,
@@ -15,9 +19,14 @@ import {
   signIn,
   signOut,
   useAccounts,
+  type Role,
 } from "@/app/lib/accounts/store";
 
 type Mode = "login" | "register" | "setup";
+
+function accountHome(role: Role) {
+  return role === "admin" ? "/admin/" : "/profile/";
+}
 
 export default function AccountPage() {
   const name = useSiteNames();
@@ -32,6 +41,28 @@ export default function AccountPage() {
   const [notice, setNotice] = useState("");
   const setup = !cloudEnabled && mode === "setup" && !accounts.hasAdmin;
   const registering = mode === "register" || setup;
+  const activeRole = accounts.active?.role;
+  const accessDenied = accounts.accessDenied;
+
+  useEffect(() => {
+    if (!cloudEnabled || !accounts.ready) return;
+    let cancelled = false;
+    void readEmailConfirmation().then((result) => {
+      if (cancelled || !result) return;
+      if (result === "confirmed" && accounts.error && !activeRole) return;
+      dismissEmailConfirmation();
+      if (result === "confirmed" && activeRole) {
+        router.replace(accountHome(activeRole));
+      } else if (!accessDenied) {
+        setError(result === "expired"
+          ? "Ссылка истекла или уже использована. Если почта подтверждена, войдите. Иначе повторите регистрацию."
+          : "Не удалось подтвердить почту по этой ссылке. Попробуйте войти или повторите регистрацию.");
+      }
+    }).catch(() => {
+      if (!cancelled) setError("Не удалось проверить ссылку. Обновите страницу и попробуйте ещё раз.");
+    });
+    return () => { cancelled = true; };
+  }, [accounts.ready, accounts.error, activeRole, accessDenied, router]);
 
   function switchMode(next: Mode) {
     setMode(next);
@@ -53,9 +84,9 @@ export default function AccountPage() {
           setLogin(created.email);
           switchMode("login");
           if (created.confirmationRequired) {
-            setNotice("Подтвердите адрес по ссылке из письма, затем войдите.");
+            setNotice("Откройте ссылку из письма, чтобы подтвердить адрес.");
           } else {
-            router.replace("/profile/");
+            router.replace(accountHome(created.role));
           }
           return;
         }
@@ -70,7 +101,7 @@ export default function AccountPage() {
         );
       } else {
         const role = await signIn(login, password);
-        router.replace(role === "admin" ? "/admin/" : "/profile/");
+        router.replace(accountHome(role));
       }
     } catch (error) {
       setError(
@@ -111,7 +142,7 @@ export default function AccountPage() {
           <div className="account-actions">
             <Link
               className="button button-primary"
-              href={accounts.active.role === "admin" ? "/admin/" : "/profile/"}
+              href={accountHome(accounts.active.role)}
             >
               {accounts.active.role === "admin"
                 ? name("nav.admin")
@@ -234,9 +265,9 @@ export default function AccountPage() {
                   От 8 до 64 символов.
                 </p>
               )}
-              {(error || accounts.error) && (
+              {(error || accounts.error || accessDenied) && (
                 <p className="account-error" role="alert">
-                  {error || accounts.error}
+                  {error || accounts.error || accessDenied}
                 </p>
               )}
               {accounts.error && (
