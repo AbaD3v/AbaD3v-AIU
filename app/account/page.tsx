@@ -1,17 +1,26 @@
 "use client";
 import { useSiteNames } from "@/app/lib/site-names/store";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/app/components/sql/ui";
-import { flushStudy } from "@/app/lib/sql/store";
+import { flushStudy, retryStudySync, updateStudy, useStudySyncStatus } from "@/app/lib/sql/store";
+import { accountDestination, rememberRegistrationTask, suggestEmailAddress } from "@/app/lib/accounts/registration";
+import {
+  getGuestTransfer,
+  getPendingGuestTransfer,
+  markGuestTransferOffered,
+  mergeGuestStudy,
+  rememberGuestTransfer,
+} from "@/app/lib/accounts/guest-study";
 import {
   cloudEnabled,
   dismissEmailConfirmation,
   readEmailConfirmation,
 } from "@/app/lib/supabase/client";
 import {
+  getAccounts,
   registerStudent,
   registerCloudStudent,
   resendCloudConfirmation,
@@ -26,6 +35,7 @@ import {
 } from "@/app/lib/accounts/store";
 
 type Mode = "login" | "register" | "setup" | "resend" | "forgot";
+type GuestTransfer = NonNullable<ReturnType<typeof getGuestTransfer>> & { accountId: string; href: string };
 
 function accountHome(role: Role) {
   return role === "admin" ? "/admin/" : "/profile/";
@@ -86,12 +96,16 @@ export default function AccountPage() {
   const name = useSiteNames();
   const accounts = useAccounts();
   const router = useRouter();
+  const syncStatus = useStudySyncStatus();
   const [mode, setMode] = useState<Mode>("login");
   const [displayName, setDisplayName] = useState("");
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [passwordAgain, setPasswordAgain] = useState("");
   const [resetFor, setResetFor] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [guestTransfer, setGuestTransfer] = useState<GuestTransfer | null>(null);
+  const [transferStarted, setTransferStarted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -103,8 +117,26 @@ export default function AccountPage() {
   const requestingLink = resending || forgotPassword;
   const activeRole = accounts.active?.role;
   const activeId = accounts.active?.id;
+  const activeLogin = accounts.active?.login ?? "";
+  const transfer = guestTransfer?.accountId === activeId ? guestTransfer : null;
   const resetting = Boolean(resetFor && resetFor === activeId);
   const accessDenied = mode === "login" ? accounts.accessDenied : undefined;
+  const suggestedAddress = cloudEnabled && mode === "register" ? suggestEmailAddress(login) : null;
+
+  const enterAccount = useCallback((role: Role, email: string) => {
+    const href = cloudEnabled ? accountDestination(role, email) : accountHome(role);
+    const account = getAccounts().active;
+    if (cloudEnabled && role === "student" && account?.role === "student" && account.login === email) {
+      const guest = getGuestTransfer(account.id);
+      if (guest) {
+        rememberGuestTransfer(account.id, href);
+        setTransferStarted(false);
+        setGuestTransfer({ ...guest, accountId: account.id, href });
+        return;
+      }
+    }
+    router.replace(href);
+  }, [router]);
 
   useEffect(() => {
     if (!cloudEnabled || !accounts.ready) return;
@@ -113,6 +145,10 @@ export default function AccountPage() {
       if (cancelled) return;
       if (!result) {
         setResetFor(null);
+        if (activeRole === "student" && activeId) {
+          const pendingTransfer = getPendingGuestTransfer(activeId);
+          if (pendingTransfer) setGuestTransfer(pendingTransfer);
+        }
         return;
       }
       if ((result === "confirmed" || result === "recovery") && accounts.error && !activeRole) return;
@@ -122,7 +158,7 @@ export default function AccountPage() {
         return;
       }
       if (result === "confirmed" && activeRole) {
-        router.replace(accountHome(activeRole));
+        enterAccount(activeRole, activeLogin);
       } else if (!accessDenied) {
         setError(result === "expired"
           ? "Ссылка истекла или уже использована. Запросите новую ссылку со страницы входа."
@@ -132,10 +168,11 @@ export default function AccountPage() {
       if (!cancelled) setError("Не удалось проверить ссылку. Обновите страницу и попробуйте ещё раз.");
     });
     return () => { cancelled = true; };
-  }, [accounts.ready, accounts.error, activeRole, activeId, accessDenied, router]);
+  }, [accounts.ready, accounts.error, activeRole, activeId, activeLogin, accessDenied, enterAccount]);
 
   function switchMode(next: Mode) {
     setMode(next);
+    setPendingEmail(null);
     setPassword("");
     setPasswordAgain("");
     setError("");
@@ -145,6 +182,42 @@ export default function AccountPage() {
   function openLinkForm(next: "resend" | "forgot") {
     switchMode(next);
     emailField.current?.focus();
+  }
+
+  async function resendPendingConfirmation(email: string) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await resendCloudConfirmation(email);
+      setNotice("Проверьте почту и папку «Спам». Подтвердить адрес можно по новой ссылке.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось отправить ссылку.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function finishTransfer(offer: GuestTransfer, copy: boolean) {
+    if (getAccounts().active?.id !== offer.accountId) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (copy) {
+        setTransferStarted(true);
+        updateStudy((current) => mergeGuestStudy(current, offer.study));
+        await flushStudy();
+      }
+      if (getAccounts().active?.id !== offer.accountId) return;
+      markGuestTransferOffered(offer.accountId);
+      setTransferStarted(false);
+      setGuestTransfer(null);
+      router.replace(offer.href);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось перенести гостевой прогресс.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function cancelReset() {
@@ -195,11 +268,12 @@ export default function AccountPage() {
         if (cloudEnabled) {
           const created = await registerCloudStudent({ name: displayName, login, password });
           setLogin(created.email);
+          rememberRegistrationTask(created.email);
           switchMode("login");
           if (created.confirmationRequired) {
-            setNotice("Откройте ссылку из письма, чтобы подтвердить адрес.");
+            setPendingEmail(created.email);
           } else {
-            router.replace(accountHome(created.role));
+            enterAccount(created.role, created.email);
           }
           return;
         }
@@ -214,7 +288,7 @@ export default function AccountPage() {
         );
       } else {
         const role = await signIn(login, password);
-        router.replace(accountHome(role));
+        enterAccount(role, getAccounts().active?.login ?? login);
       }
     } catch (error) {
       setError(
@@ -238,6 +312,43 @@ export default function AccountPage() {
       />
       {!accounts.ready ? (
         <p role="status">Загружаем аккаунты…</p>
+      ) : transfer && !resetting ? (
+        <section className="account-card account-signed-in" aria-labelledby="guest-transfer-title">
+          <h2 id="guest-transfer-title">Перенести гостевой прогресс?</h2>
+          <p>В этом браузере решено задач — {transfer.solved}, сохранено черновиков — {transfer.drafts}.</p>
+          <p>Отредактированные черновики и заметки, которые уже есть в аккаунте, сохранятся.</p>
+          {syncStatus === "loading" && <p role="status">Загружаем прогресс аккаунта…</p>}
+          {(syncStatus === "load-error" || syncStatus === "conflict") && (
+            <p className="account-error" role="alert">
+              {syncStatus === "conflict"
+                ? "Прогресс изменился на другом устройстве. Обновите страницу, чтобы попробовать ещё раз."
+                : "Не удалось загрузить прогресс аккаунта."}
+            </p>
+          )}
+          {error && <p className="account-error" role="alert">{error}</p>}
+          <div className="account-actions">
+            {syncStatus === "load-error" ? (
+              <button type="button" className="button button-primary" onClick={retryStudySync}>Загрузить снова</button>
+            ) : (
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={busy || syncStatus === "loading" || syncStatus === "conflict" || syncStatus === "local"}
+                onClick={() => { void finishTransfer(transfer, true); }}
+              >
+                {busy ? "Переносим…" : transferStarted ? "Повторить сохранение" : "Перенести прогресс"}
+              </button>
+            )}
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={busy}
+              onClick={() => { void finishTransfer(transfer, false); }}
+            >
+              {transferStarted ? "Продолжить" : "Продолжить без переноса"}
+            </button>
+          </div>
+        </section>
       ) : accounts.active && !resetting ? (
         <section className="account-card account-signed-in">
           <span className="account-icon">
@@ -295,6 +406,29 @@ export default function AccountPage() {
               Вход действует до обновления страницы.
             </p>
           )}
+        </section>
+      ) : pendingEmail ? (
+        <section className="account-card account-signed-in" aria-labelledby="check-email-title">
+          <h2 id="check-email-title">Проверьте почту</h2>
+          <p>Откройте ссылку подтверждения из письма на <strong style={{ overflowWrap: "anywhere" }}>{pendingEmail}</strong>.</p>
+          <div className="account-actions">
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={busy}
+              onClick={() => { void resendPendingConfirmation(pendingEmail); }}
+            >
+              {busy ? name("account.wait") : "Отправить ещё раз"}
+            </button>
+            <button type="button" className="button button-secondary" disabled={busy} onClick={() => switchMode("register")}>
+              Исправить адрес
+            </button>
+            <button type="button" className="button button-secondary" disabled={busy} onClick={() => switchMode("login")}>
+              К форме входа
+            </button>
+          </div>
+          {error && <p className="account-error" role="alert">{error}</p>}
+          {notice && <p className="notice-banner" role="status">{notice}</p>}
         </section>
       ) : (
         <div className="account-grid">
@@ -364,6 +498,16 @@ export default function AccountPage() {
                   onChange={(event) => setLogin(event.target.value)}
                 />
               </label>}
+              {suggestedAddress && (
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { setLogin(suggestedAddress); emailField.current?.focus(); }}
+                >
+                  Использовать {suggestedAddress}?
+                </button>
+              )}
               {(!requestingLink || resetting) && (
                 <PasswordField
                   key={resetting ? "reset" : mode}
@@ -385,7 +529,11 @@ export default function AccountPage() {
                 />
               )}
               {(registering || resetting) && (
-                <p className="account-help" id="password-help">От 8 до 64 символов.</p>
+                <p className="account-help" id="password-help">
+                  {password.length === 0 ? "От 8 до 64 символов."
+                    : password.length < 8 ? `До минимума ещё ${8 - password.length} симв.`
+                      : password.trim() ? "Длина подходит." : "Добавьте символы кроме пробелов."}
+                </p>
               )}
               {(error || (!resetting && (accounts.error || accessDenied))) && (
                 <p className="account-error" role="alert">
