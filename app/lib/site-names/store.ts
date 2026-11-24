@@ -2,6 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 import { getAccounts, refreshAccounts } from "../accounts/store";
+import { cloudEnabled, getSupabase } from "../supabase/client";
 import {
   mergeNameChanges,
   nameDefaults,
@@ -15,9 +16,28 @@ export const siteNamesStorageKey = "codeproof.site-names.v1";
 const initial: NameValues = {};
 let snapshot = { raw: null as string | null, values: initial };
 const listeners = new Set<() => void>();
+let cloudNames: NameValues = {};
+let cloudRequest = 0;
+
+async function loadCloudNames() {
+  const request = ++cloudRequest;
+  const { data, error } = await getSupabase().from("codeproof_site_names").select("key, value");
+  if (error || request !== cloudRequest) return;
+  const next: NameValues = {};
+  for (const { key, value } of data) {
+    if (nameDefaults.has(key as NameKey) && typeof value === "string") next[key as NameKey] = value;
+  }
+  cloudNames = next;
+  notify();
+}
+
+function refreshCloudNames() {
+  void loadCloudNames().catch(() => {});
+}
 
 function readNames() {
   if (typeof window === "undefined") return initial;
+  if (cloudEnabled) return cloudNames;
   try {
     const raw = window.localStorage.getItem(siteNamesStorageKey);
     if (raw === snapshot.raw) return snapshot.values;
@@ -52,11 +72,21 @@ function onStorage(event: StorageEvent) {
 }
 
 function subscribe(listener: () => void) {
-  if (!listeners.size) window.addEventListener("storage", onStorage);
+  if (!listeners.size) {
+    if (cloudEnabled) {
+      refreshCloudNames();
+      window.addEventListener("focus", refreshCloudNames);
+    } else {
+      window.addEventListener("storage", onStorage);
+    }
+  }
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
-    if (!listeners.size) window.removeEventListener("storage", onStorage);
+    if (!listeners.size) {
+      window.removeEventListener("focus", refreshCloudNames);
+      window.removeEventListener("storage", onStorage);
+    }
   };
 }
 
@@ -69,9 +99,9 @@ export function useSiteNames() {
   return useCallback((key: NameKey) => resolveName(key, values), [values]);
 }
 
-export function saveSiteNames(changes: NameChanges) {
+export async function saveSiteNames(changes: NameChanges) {
   if (typeof window === "undefined") throw new Error("Сохранение доступно только в браузере.");
-  refreshAccounts();
+  if (!cloudEnabled) refreshAccounts();
   if (getAccounts().active?.role !== "admin") throw new Error("Нужен аккаунт администратора.");
 
   const normalized: NameChanges = {};
@@ -82,6 +112,17 @@ export function saveSiteNames(changes: NameChanges) {
       throw new Error(`${resolveName("admin.nameEmpty", values)}: ${nameDefaults.get(key)}.`);
     }
     normalized[key] = value === null ? null : value.trim();
+  }
+
+  if (cloudEnabled) {
+    const rows = Object.entries(normalized).map(([key, value]) => ({ key, value }));
+    if (!rows.length) return;
+    const { error } = await getSupabase().from("codeproof_site_names").upsert(rows);
+    if (error) throw new Error("Не удалось сохранить названия в Supabase.");
+    cloudRequest += 1;
+    cloudNames = mergeNameChanges(cloudNames, normalized);
+    notify();
+    return;
   }
 
   try {

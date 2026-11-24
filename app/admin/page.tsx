@@ -14,7 +14,8 @@ import {
 } from "@/app/lib/accounts/store";
 import { tasks } from "@/app/lib/sql/course";
 import { getStats, STORAGE_KEY } from "@/app/lib/sql/progress";
-import { readStudentStudy } from "@/app/lib/sql/store";
+import { clearAdminStudies, readStudentStudy, refreshAdminStudies } from "@/app/lib/sql/store";
+import { cloudEnabled } from "@/app/lib/supabase/client";
 
 export default function AdminPage() {
   const name = useSiteNames();
@@ -26,15 +27,37 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [, refreshProgress] = useState(0);
+  const [progressError, setProgressError] = useState("");
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!isAdmin) return;
+    if (cloudEnabled) {
+      let mounted = true;
+      const refresh = () => {
+        void refreshAdminStudies().then(() => {
+          if (mounted) {
+            setProgressError("");
+            refreshProgress((version) => version + 1);
+          }
+        }).catch(() => {
+          if (mounted) setProgressError("Не удалось загрузить прогресс студентов. Обновите страницу.");
+        });
+      };
+      refresh();
+      window.addEventListener("focus", refresh);
+      return () => {
+        mounted = false;
+        window.removeEventListener("focus", refresh);
+        clearAdminStudies();
+      };
+    }
     const onStorage = (event: StorageEvent) => {
       if (event.key === null || event.key.startsWith(STORAGE_KEY + ".account."))
         refreshProgress((version) => version + 1);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [isAdmin]);
+  }, [isAdmin, active?.id]);
 
   if (!ready)
     return (
@@ -64,11 +87,13 @@ export default function AdminPage() {
   const blocked = students.filter((student) => student.blocked).length;
   const selectedStudent = students.find((student) => student.id === progressId);
 
-  function toggleAccess(student: Account) {
+  async function toggleAccess(student: Account) {
+    if (busy) return;
+    setBusy(true);
     setError("");
     setNotice("");
     try {
-      setStudentBlocked(student.id, !student.blocked);
+      await setStudentBlocked(student.id, !student.blocked);
       setTarget(null);
       setNotice(
         student.blocked
@@ -79,6 +104,8 @@ export default function AdminPage() {
       setError(
         error instanceof Error ? error.message : "Не удалось изменить доступ.",
       );
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -87,7 +114,7 @@ export default function AdminPage() {
       <PageHeading
         eyebrow={name("admin.eyebrow")}
         title={name("admin.heading")}
-        description="Управляйте доступом студентов и смотрите их прогресс в этом браузере."
+        description="Управляйте доступом студентов и смотрите их прогресс."
       >
         <Link href="/account/" className="button button-secondary">
           <ShieldCheck size={16} />
@@ -130,6 +157,7 @@ export default function AdminPage() {
             {notice}
           </p>
         )}
+        {progressError && <p className="account-error" role="alert">{progressError}</p>}
         {rows.length ? (
           <div
             className="data-scroll admin-table-wrap"
@@ -205,7 +233,8 @@ export default function AdminPage() {
           <p className="account-help admin-empty">
             {students.length
               ? "Студенты не найдены."
-              : "Здесь появятся студенты после регистрации в этом браузере."}
+              : cloudEnabled ? "Здесь появятся студенты после регистрации и подтверждения почты."
+                : "Здесь появятся студенты после регистрации в этом браузере."}
           </p>
         )}
       </section>
@@ -239,7 +268,8 @@ export default function AdminPage() {
             </button>
             <button
               className="button button-primary"
-              onClick={() => toggleAccess(target)}
+              disabled={busy}
+              onClick={() => { void toggleAccess(target); }}
             >
               {target.blocked ? name("admin.restore") : name("admin.suspend")}
             </button>

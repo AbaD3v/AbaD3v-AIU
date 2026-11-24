@@ -22,10 +22,11 @@ import {
 } from "lucide-react";
 import { SiteDocumentTitle } from "./site-name";
 import { brandName, type NameKey } from "@/app/lib/site-names/registry";
-import { useStudy } from "@/app/lib/sql/store";
+import { retryStudySync, useStudy, useStudySyncStatus } from "@/app/lib/sql/store";
 import { getStats } from "@/app/lib/sql/progress";
 import { tasks } from "@/app/lib/sql/course";
 import { useAccounts } from "@/app/lib/accounts/store";
+import { cloudEnabled } from "@/app/lib/supabase/client";
 
 type NavItem = { href: string; nameKey: NameKey; icon: LucideIcon };
 
@@ -45,8 +46,12 @@ const accountLink: NavItem = { href: "/account/", nameKey: "nav.account", icon: 
 export default function SqlShell({ children }: { children: ReactNode }) {
   const name = useSiteNames();
   const pathname = usePathname();
-  const { active } = useAccounts();
+  const { active, ready } = useAccounts();
   const state = useStudy();
+  const syncStatus = useStudySyncStatus();
+  const studyPage = pathname === "/" || /^\/(practice|profile|checklist|notes|history|quiz)(\/|$)/.test(pathname);
+  const studyLoading = cloudEnabled && studyPage && (!ready || syncStatus === "loading");
+  const studyUnavailable = studyPage && syncStatus === "load-error";
   const stats = getStats(state);
   const displayName = active || state.name !== "Студент" ? state.name : name("nav.guest");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -227,7 +232,10 @@ export default function SqlShell({ children }: { children: ReactNode }) {
               <Check size={14} />
               {state.storageIssue
                 ? name("nav.storageUnavailable")
-                : name("nav.localProgress")}
+                : syncStatus === "synced" ? name("nav.cloudProgress")
+                : syncStatus === "saving" ? "Синхронизация…"
+                  : syncStatus === "loading" ? "Загрузка…"
+                    : name("nav.localProgress")}
             </span>
             <Link href="/account/" className="topbar-account">
               <UserRound size={15} />
@@ -238,11 +246,16 @@ export default function SqlShell({ children }: { children: ReactNode }) {
         {state.storageIssue && (
           <div className="storage-warning" role="status">
             {state.storageIssue}{" "}
-            <Link href="/profile/">{name("nav.progressWarning")}</Link>
+            {syncStatus !== "load-error" && <Link href="/profile/">{name("nav.progressWarning")}</Link>}
+            {(syncStatus === "load-error" || syncStatus === "save-error") && (
+              <button type="button" className="button button-secondary" onClick={retryStudySync}>Повторить</button>
+            )}
           </div>
         )}
         <main id="main-content" tabIndex={-1}>
-          <Fragment key={active?.id ?? "guest"}>{children}</Fragment>
+          {studyLoading ? <p className="page" role="status">Загружаем прогресс…</p>
+            : studyUnavailable ? <p className="page" role="status">Не удалось открыть сохранения аккаунта.</p>
+              : <Fragment key={active?.id ?? "guest"}>{children}</Fragment>}
         </main>
       </div>
     </div>

@@ -5,8 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/app/components/sql/ui";
+import { flushStudy } from "@/app/lib/sql/store";
+import { cloudEnabled } from "@/app/lib/supabase/client";
 import {
   registerStudent,
+  registerCloudStudent,
   refreshAccounts,
   setupDemoAdmin,
   signIn,
@@ -27,7 +30,7 @@ export default function AccountPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const setup = mode === "setup" && !accounts.hasAdmin;
+  const setup = !cloudEnabled && mode === "setup" && !accounts.hasAdmin;
   const registering = mode === "register" || setup;
 
   function switchMode(next: Mode) {
@@ -45,6 +48,17 @@ export default function AccountPage() {
     setNotice("");
     try {
       if (registering) {
+        if (cloudEnabled) {
+          const created = await registerCloudStudent({ name: displayName, login, password });
+          setLogin(created.email);
+          switchMode("login");
+          if (created.confirmationRequired) {
+            setNotice("Подтвердите адрес по ссылке из письма, затем войдите.");
+          } else {
+            router.replace("/profile/");
+          }
+          return;
+        }
         const create = setup ? setupDemoAdmin : registerStudent;
         const createdLogin = await create({ name: displayName, login, password });
         setLogin(createdLogin);
@@ -74,7 +88,9 @@ export default function AccountPage() {
       <PageHeading
         eyebrow="CODEPROOF SQL"
         title={name("account.heading")}
-        description="Учебные аккаунты и прогресс хранятся в этом браузере."
+        description={cloudEnabled
+          ? "Войдите, чтобы сохранять прогресс и продолжать практику на другом устройстве."
+          : "Учебные аккаунты и прогресс хранятся в этом браузере."}
       />
       {!accounts.ready ? (
         <p role="status">Загружаем аккаунты…</p>
@@ -104,13 +120,19 @@ export default function AccountPage() {
             </Link>
             <button
               className="button button-secondary"
-              onClick={() => {
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
                 try {
-                  signOut();
-                } catch {
+                  await flushStudy();
+                  await signOut();
+                } catch (error) {
                   setError(
-                    "Не удалось завершить вход. Закройте вкладку и откройте сайт снова.",
+                    error instanceof Error ? error.message : "Не удалось завершить сеанс.",
                   );
+                } finally {
+                  setBusy(false);
                 }
               }}
             >
@@ -180,11 +202,12 @@ export default function AccountPage() {
                 </label>
               )}
               <label>
-                {name("account.login")}
+                {name(cloudEnabled ? "account.email" : "account.login")}
                 <input
+                  type={cloudEnabled ? "email" : "text"}
                   autoComplete="username"
                   required
-                  maxLength={32}
+                  maxLength={cloudEnabled ? 254 : 32}
                   autoCapitalize="none"
                   spellCheck={false}
                   value={login}
@@ -208,8 +231,7 @@ export default function AccountPage() {
               </label>
               {registering && (
                 <p className="account-help" id="password-help">
-                  От 8 до 64 символов. Используйте отдельный пароль для
-                  демонстрации.
+                  От 8 до 64 символов.
                 </p>
               )}
               {(error || accounts.error) && (
@@ -221,9 +243,10 @@ export default function AccountPage() {
                 <button
                   className="button button-secondary"
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setError("");
-                    refreshAccounts();
+                    try { await refreshAccounts(); }
+                    catch (error) { setError(error instanceof Error ? error.message : "Попробуйте ещё раз."); }
                   }}
                 >
                   {name("account.retryStorage")}
@@ -264,7 +287,7 @@ export default function AccountPage() {
               <strong>{name("common.roleAdmin")}</strong> видит прогресс студентов и
               управляет их входом.
             </p>
-            {!accounts.hasAdmin && !setup && (
+            {!cloudEnabled && !accounts.hasAdmin && !setup && (
               <button
                 className="button button-secondary"
                 disabled={busy || !!accounts.error}
@@ -280,10 +303,10 @@ export default function AccountPage() {
             {accounts.temporarySession && (
               <small>Вход действует до обновления страницы.</small>
             )}
-            <small>
+            {!cloudEnabled && <small>
               Аккаунты работают локально для демонстрации ролей. На другом
               устройстве список аккаунтов будет отдельным.
-            </small>
+            </small>}
             <Link className="text-link" href="/">
               {name("account.guestPractice")}
               <ArrowRight size={15} />

@@ -8,7 +8,7 @@ import { getTask, taskHref } from "../lib/sql/course";
 import { useQuizQuestions, type QuizQuestion } from "../lib/sql/quiz";
 import { useAccounts } from "../lib/accounts/store";
 import { getStudyScope, useStudy } from "../lib/sql/store";
-import { completeQuiz, readQuizResult } from "./results";
+import { completeQuiz, isCloudQuiz, readCloudQuizResult, readQuizResult, saveCloudQuizResult } from "./results";
 import styles from "./quiz.module.css";
 
 export default function QuizChat() {
@@ -48,9 +48,11 @@ type AttemptProps = { taskId: string; questions: QuizQuestion[] } & (
 function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps) {
   const name = useSiteNames();
   const scope = getStudyScope();
-  const [lastResult, setLastResult] = useState(() => training ? null : readQuizResult(taskId, scope));
+  const cloud = isCloudQuiz();
+  const [lastResult, setLastResult] = useState(() => training || cloud ? null : readQuizResult(taskId, scope));
   const [showTraining, setShowTraining] = useState(false);
   const [storageIssue, setStorageIssue] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [answers, setAnswers] = useState<number[]>([]);
   const submitted = useRef<number[]>([]);
   const [current, setCurrent] = useState(0);
@@ -63,6 +65,26 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
       ? [{ question, answer: answers[index] }] : []);
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [answers.length, current, showTraining]);
 
+  useEffect(() => {
+    if (training || !cloud) return;
+    let mounted = true;
+    void readCloudQuizResult(taskId, scope).then((result) => {
+      if (mounted && submitted.current.length !== questions.length) setLastResult(result);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [cloud, taskId, scope, training, questions.length]);
+
+  async function persistResult(result: NonNullable<typeof lastResult>) {
+    setSaving(true);
+    try {
+      setStorageIssue(!await saveCloudQuizResult(taskId, result, scope));
+    } catch {
+      setStorageIssue(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function answerQuestion(answer: number) {
     if (submitted.current.length !== current || scope !== getStudyScope()) return;
     const next = [...submitted.current, answer];
@@ -71,7 +93,8 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
     if (!training && next.length === questions.length) {
       const completion = completeQuiz(taskId, questions, next, scope);
       setLastResult(completion.result);
-      setStorageIssue(!completion.saved);
+      if (cloud) void persistResult(completion.result);
+      else setStorageIssue(!completion.saved);
     }
   }
 
@@ -83,7 +106,11 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
     <p>{training ? name("quiz.training") : name("quiz.chat")} · {questions.length} вопросов</p>
     {training && <p>Тренировка не изменяет результат полной попытки.</p>}
     {lastResult && <p role="status">{name("quiz.lastResult")} {lastResult.score} из {lastResult.questionCount} · <time dateTime={lastResult.completedAt}>{new Date(lastResult.completedAt).toLocaleString("ru-RU")}</time></p>}
-    {storageIssue && <p role="status">Не удалось сохранить результат в браузере. Итог текущей попытки показан здесь, но после перезагрузки может быть потерян.</p>}
+    {saving && <p role="status">Сохраняем результат…</p>}
+    {storageIssue && !saving && <div role="status">
+      <p>Не удалось сохранить результат. Итог текущей попытки показан ниже.</p>
+      {cloud && lastResult && <button type="button" className="button button-secondary" onClick={() => { void persistResult(lastResult); }}>Повторить</button>}
+    </div>}
     <div className={styles.chat} role="log" aria-label={name("quiz.dialog")} aria-live="polite">
       <div className={styles.message}>Выбирай один ответ. После ответа разберём результат.</div>
       {questions.slice(0, current + 1).map((question, index) => (
