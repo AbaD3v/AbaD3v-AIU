@@ -1,6 +1,7 @@
 "use client";
 import { useSiteNames } from "@/app/lib/site-names/store";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, LogOut, ShieldCheck, UserRound } from "lucide-react";
@@ -19,6 +20,7 @@ import {
   dismissEmailConfirmation,
   readEmailConfirmation,
 } from "@/app/lib/supabase/client";
+import { dismissGoogleReturn, googleSignInEnabled, readGoogleReturn, startGoogleSignIn } from "@/app/lib/supabase/google";
 import {
   getAccounts,
   registerStudent,
@@ -107,6 +109,7 @@ export default function AccountPage() {
   const [guestTransfer, setGuestTransfer] = useState<GuestTransfer | null>(null);
   const [transferStarted, setTransferStarted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [googleAvailable, setGoogleAvailable] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const emailField = useRef<HTMLInputElement>(null);
@@ -123,8 +126,8 @@ export default function AccountPage() {
   const accessDenied = mode === "login" ? accounts.accessDenied : undefined;
   const suggestedAddress = cloudEnabled && mode === "register" ? suggestEmailAddress(login) : null;
 
-  const enterAccount = useCallback((role: Role, email: string) => {
-    const href = cloudEnabled ? accountDestination(role, email) : accountHome(role);
+  const enterAccount = useCallback((role: Role, email: string, task?: string | null) => {
+    const href = cloudEnabled ? accountDestination(role, email, task) : accountHome(role);
     const account = getAccounts().active;
     if (cloudEnabled && role === "student" && account?.role === "student" && account.login === email) {
       const guest = getGuestTransfer(account.id);
@@ -139,9 +142,40 @@ export default function AccountPage() {
   }, [router]);
 
   useEffect(() => {
+    if (!cloudEnabled) return;
+    const controller = new AbortController();
+    void googleSignInEnabled(controller.signal).then((enabled) => {
+      if (!controller.signal.aborted) setGoogleAvailable(enabled);
+    });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     if (!cloudEnabled || !accounts.ready) return;
     let cancelled = false;
-    void readEmailConfirmation().then((result) => {
+
+    async function completeSignIn() {
+      const google = await readGoogleReturn();
+      if (cancelled) return;
+      if (google) {
+        if (google.status === "signed-in") {
+          if (activeId === google.userId && activeRole) {
+            dismissGoogleReturn();
+            enterAccount(activeRole, activeLogin, google.task);
+          } else if (accessDenied) {
+            dismissGoogleReturn();
+          }
+        } else {
+          dismissGoogleReturn();
+          dismissEmailConfirmation();
+          setError(google.status === "cancelled"
+            ? "Вход через Google отменён."
+            : "Не удалось завершить вход через Google. Попробуйте ещё раз.");
+        }
+        return;
+      }
+
+      const result = await readEmailConfirmation();
       if (cancelled) return;
       if (!result) {
         setResetFor(null);
@@ -164,8 +198,10 @@ export default function AccountPage() {
           ? "Ссылка истекла или уже использована. Запросите новую ссылку со страницы входа."
           : "Не удалось открыть ссылку из письма. Запросите новую ссылку со страницы входа.");
       }
-    }).catch(() => {
-      if (!cancelled) setError("Не удалось проверить ссылку. Обновите страницу и попробуйте ещё раз.");
+    }
+
+    void completeSignIn().catch(() => {
+      if (!cancelled) setError("Не удалось завершить вход. Обновите страницу и попробуйте ещё раз.");
     });
     return () => { cancelled = true; };
   }, [accounts.ready, accounts.error, activeRole, activeId, activeLogin, accessDenied, enterAccount]);
@@ -182,6 +218,20 @@ export default function AccountPage() {
   function openLinkForm(next: "resend" | "forgot") {
     switchMode(next);
     emailField.current?.focus();
+  }
+
+  async function signInWithGoogle() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await startGoogleSignIn();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось открыть вход через Google.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function resendPendingConfirmation(email: string) {
@@ -470,6 +520,25 @@ export default function AccountPage() {
             {requestingLink && <p className="account-help">Введите адрес, который указали при регистрации.</p>}
             {resetting && <p className="account-help">Аккаунт {accounts.active?.login}</p>}
             <form className="account-form" onSubmit={submit}>
+              {googleAvailable && !accounts.active && (mode === "login" || mode === "register") && (
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  disabled={busy || !!accounts.error}
+                  onClick={() => { void signInWithGoogle(); }}
+                  style={{ backgroundColor: "#fff", borderColor: "#747775", color: "#1f1f1f", gap: 10 }}
+                >
+                  <Image
+                    src="https://developers.google.com/static/identity/images/g-logo.png"
+                    width={18}
+                    height={18}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    unoptimized
+                  />
+                  Войти через Google
+                </button>
+              )}
               {registering && !resetting && (
                 <label>
                   {name("account.name")}

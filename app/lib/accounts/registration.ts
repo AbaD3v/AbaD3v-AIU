@@ -34,9 +34,9 @@ export function rememberRegistrationTask(email: string) {
   }
 }
 
-export function accountDestination(role: Role, email: string) {
+export function accountDestination(role: Role, email: string, task?: string | null) {
   if (role === "admin") return "/admin/";
-  const id = new URLSearchParams(window.location.search).get("task");
+  const id = task ?? new URLSearchParams(window.location.search).get("task");
   let remembered: string | undefined;
   try {
     const saved = JSON.parse(window.localStorage.getItem(returnKey) ?? "null");

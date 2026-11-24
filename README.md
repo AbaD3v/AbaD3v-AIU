@@ -125,6 +125,14 @@ npm start
 3. Включите регистрацию по электронной почте и её подтверждение. Для отправки писем студентам вне команды проекта настройте [свой SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
 4. Скопируйте `.env.example` в `.env.local`. Заполните `NEXT_PUBLIC_SUPABASE_URL` адресом проекта и `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` ключом `sb_publishable_…`. При публикации задайте эти переменные в окружении сборки и заново выполните `npm run build`. В статическую сборку попадает публичный ключ. Доступ к строкам проверяют политики PostgreSQL.
 
+### Вход через Google
+
+1. В [Google Auth Platform](https://console.cloud.google.com/auth/clients) создайте OAuth-клиент типа **Web application**. В **Authorized redirect URIs** добавьте `https://<project-ref>.supabase.co/auth/v1/callback`. Для проекта CodeProof SQL `project-ref` — `exnssqjmigddfqasuznb`.
+2. В **Authentication → Sign In / Providers → Google** включите провайдера и сохраните Client ID и Client Secret. Client Secret вводится в Supabase Dashboard.
+3. В списке разрешённых перенаправлений Supabase оставьте точный адрес страницы `/account/` для каждого адреса сайта, где будет работать вход. Кнопка появится, когда Supabase сообщит, что Google включён.
+
+Если приложение Google пока в режиме тестирования, добавьте тестовые аккаунты в список **Audience → Test users**. [Руководство по настройке](https://supabase.com/docs/guides/auth/social-sign-in/auth-google).
+
 Зарегистрируйте преподавателя через страницу **Аккаунт** и подтвердите его почту. В SQL Editor назначьте роль, подставив этот подтверждённый адрес:
 
 ```sql

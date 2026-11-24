@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-export const cloudEnabled = Boolean(url && key);
+export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+export const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+export const cloudEnabled = Boolean(supabaseUrl && supabasePublishableKey);
 
 type EmailRedirect = "signup" | "recovery" | "expired" | "invalid";
 const recoveryKey = "codeproof.password-recovery";
@@ -41,12 +41,12 @@ function captureEmailRedirect() {
 }
 
 export function getSupabase() {
-  if (typeof window === "undefined" || !url || !key) {
+  if (typeof window === "undefined" || !supabaseUrl || !supabasePublishableKey) {
     throw new Error("Подключение к Supabase доступно в настроенном браузерном приложении.");
   }
   if (!client) {
     captureEmailRedirect();
-    client = createClient(url, key);
+    client = createClient(supabaseUrl, supabasePublishableKey);
   }
   return client;
 }
