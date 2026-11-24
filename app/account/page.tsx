@@ -498,203 +498,182 @@ export default function AccountPage() {
           {notice && <p className="notice-banner" role="status">{notice}</p>}
         </section>
       ) : (
-        <div className="account-grid">
-          <section
-            className="account-card"
-            aria-labelledby="account-form-title"
-          >
-            {!resetting && <div className="account-switch" aria-label={name("account.mode")}>
-              <button
-                type="button"
-                aria-pressed={mode === "login"}
-                disabled={busy}
-                onClick={() => switchMode("login")}
-              >
-                {name("account.signInTab")}
-              </button>
-              <button
-                type="button"
-                aria-pressed={mode === "register"}
-                disabled={busy}
-                onClick={() => switchMode("register")}
-              >
-                {name("account.registerTab")}
-              </button>
-            </div>}
-            <h2 id="account-form-title">
-              {resetting ? "Новый пароль"
-                : forgotPassword ? "Восстановление пароля"
-                  : resending ? "Новая ссылка подтверждения"
-                    : registering ? name("account.registerTab") : name("account.signInHeading")}
-            </h2>
-            {requestingLink && <p className="account-help">Введите адрес, который указали при регистрации.</p>}
-            {resetting && <p className="account-help">Аккаунт {accounts.active?.login}</p>}
-            <form className="account-form" onSubmit={submit}>
-              {googleAvailable && !accounts.active && (mode === "login" || mode === "register") && (
-                <div className={googleStyles.option}>
-                  <button
-                    className={googleStyles.button}
-                    type="button"
-                    disabled={busy || !!accounts.error}
-                    onClick={() => { void signInWithGoogle(); }}
-                  >
-                    <Image
-                      src="/google-g.png"
-                      width={18}
-                      height={18}
-                      alt=""
-                      unoptimized
-                    />
-                    <span>Войти через Google</span>
-                  </button>
-                  <span className={googleStyles.divider} aria-hidden="true">или по почте</span>
-                </div>
-              )}
-              {registering && !resetting && (
-                <label>
-                  {name("account.name")}
-                  <input
-                    autoComplete="name"
-                    disabled={busy}
-                    required
-                    maxLength={40}
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
+        <section
+          className="account-card"
+          aria-labelledby="account-form-title"
+        >
+          {!resetting && <div className="account-switch" aria-label={name("account.mode")}>
+            <button
+              type="button"
+              aria-pressed={mode === "login"}
+              disabled={busy}
+              onClick={() => switchMode("login")}
+            >
+              {name("account.signInTab")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "register"}
+              disabled={busy}
+              onClick={() => switchMode("register")}
+            >
+              {name("account.registerTab")}
+            </button>
+          </div>}
+          <h2 id="account-form-title">
+            {resetting ? "Новый пароль"
+              : forgotPassword ? "Восстановление пароля"
+                : resending ? "Новая ссылка подтверждения"
+                  : registering ? name("account.registerTab") : name("account.signInHeading")}
+          </h2>
+          {requestingLink && <p className="account-help">Введите адрес, который указали при регистрации.</p>}
+          {resetting && <p className="account-help">Аккаунт {accounts.active?.login}</p>}
+          <form className="account-form" onSubmit={submit}>
+            {googleAvailable && !accounts.active && (mode === "login" || mode === "register") && (
+              <div className={googleStyles.option}>
+                <button
+                  className={googleStyles.button}
+                  type="button"
+                  disabled={busy || !!accounts.error}
+                  onClick={() => { void signInWithGoogle(); }}
+                >
+                  <Image
+                    src="/google-g.png"
+                    width={18}
+                    height={18}
+                    alt=""
+                    unoptimized
                   />
-                </label>
-              )}
-              {!resetting && <label>
-                {name(cloudEnabled ? "account.email" : "account.login")}
+                  <span>Войти через Google</span>
+                </button>
+                <span className={googleStyles.divider} aria-hidden="true">или по почте</span>
+              </div>
+            )}
+            {registering && !resetting && (
+              <label>
+                {name("account.name")}
                 <input
-                  ref={emailField}
-                  name="username"
-                  type={cloudEnabled ? "email" : "text"}
-                  autoComplete={requestingLink ? "email" : "username"}
+                  autoComplete="name"
                   disabled={busy}
                   required
-                  maxLength={cloudEnabled ? 254 : 32}
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  value={login}
-                  onChange={(event) => setLogin(event.target.value)}
+                  maxLength={40}
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
                 />
-              </label>}
-              {suggestedAddress && (
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => { setLogin(suggestedAddress); emailField.current?.focus(); }}
-                >
-                  Использовать {suggestedAddress}?
-                </button>
-              )}
-              {(!requestingLink || resetting) && (
-                <PasswordField
-                  key={resetting ? "reset" : mode}
-                  label={resetting ? "Новый пароль" : name("account.password")}
-                  value={password}
-                  onChange={setPassword}
-                  disabled={busy}
-                  newPassword={resetting || registering}
-                  descriptionId={resetting || registering ? "password-help" : undefined}
-                />
-              )}
-              {resetting && (
-                <PasswordField
-                  label="Повторите новый пароль"
-                  fieldName="passwordConfirmation"
-                  value={passwordAgain}
-                  onChange={setPasswordAgain}
-                  disabled={busy}
-                  newPassword
-                />
-              )}
-              {(registering || resetting) && (
-                <p className="account-help" id="password-help">
-                  {password.length === 0 ? "От 8 до 64 символов."
-                    : password.length < 8 ? `До минимума ещё ${8 - password.length} симв.`
-                      : password.trim() ? "Длина подходит." : "Добавьте символы кроме пробелов."}
-                </p>
-              )}
-              {(error || (!resetting && (accounts.error || accessDenied))) && (
-                <p className="account-error" role="alert">
-                  {error || accounts.error || accessDenied}
-                </p>
-              )}
-              {accounts.error && !resetting && (
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={async () => {
-                    setError("");
-                    try { await refreshAccounts(); }
-                    catch (error) { setError(error instanceof Error ? error.message : "Попробуйте ещё раз."); }
-                  }}
-                >
-                  {name("account.retryStorage")}
-                </button>
-              )}
-              {notice && (
-                <p className="notice-banner" role="status">
-                  {notice}
-                </p>
-              )}
-              <button
-                type="submit"
-                className="button button-primary"
-                disabled={busy || (!!accounts.error && !resetting)}
-              >
-                {busy ? name("account.wait")
-                  : resetting ? "Сохранить пароль"
-                    : requestingLink ? "Отправить ссылку"
-                      : registering ? name("account.register") : name("account.signIn")}
-                <ArrowRight size={16} />
-              </button>
-              {resetting && (
-                <button type="button" className="button button-secondary" disabled={busy} onClick={cancelReset}>
-                  Отменить восстановление
-                </button>
-              )}
-              {cloudEnabled && mode === "login" && !resetting && (
-                <>
-                  <button type="button" className="button button-secondary" disabled={busy} onClick={() => openLinkForm("forgot")}>
-                    Забыли пароль?
-                  </button>
-                  <button type="button" className="button button-secondary" disabled={busy} onClick={() => openLinkForm("resend")}>
-                    Получить новую ссылку подтверждения
-                  </button>
-                </>
-              )}
-            </form>
-          </section>
-          <aside
-            className="account-card account-guide"
-            aria-labelledby="account-guide-title"
-          >
-            <span className="account-icon">
-              <ShieldCheck size={24} />
-            </span>
-            <h2 id="account-guide-title">{name("account.roles")}</h2>
-            <p>
-              <strong>{name("common.roleStudent")}</strong> решает задания и ведёт свой прогресс.
-            </p>
-            <p>
-              <strong>{name("common.roleAdmin")}</strong> видит прогресс студентов и
-              управляет их входом.
-            </p>
-            {accounts.temporarySession && (
-              <small>Вход действует до обновления страницы.</small>
+              </label>
             )}
-            {!cloudEnabled && <small>
-              У каждого браузера свой список локальных аккаунтов.
-            </small>}
-            <Link className="text-link" href="/">
-              {name("account.guestPractice")}
-              <ArrowRight size={15} />
-            </Link>
-          </aside>
-        </div>
+            {!resetting && <label>
+              {name(cloudEnabled ? "account.email" : "account.login")}
+              <input
+                ref={emailField}
+                name="username"
+                type={cloudEnabled ? "email" : "text"}
+                autoComplete={requestingLink ? "email" : "username"}
+                disabled={busy}
+                required
+                maxLength={cloudEnabled ? 254 : 32}
+                autoCapitalize="none"
+                spellCheck={false}
+                value={login}
+                onChange={(event) => setLogin(event.target.value)}
+              />
+            </label>}
+            {suggestedAddress && (
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => { setLogin(suggestedAddress); emailField.current?.focus(); }}
+              >
+                Использовать {suggestedAddress}?
+              </button>
+            )}
+            {(!requestingLink || resetting) && (
+              <PasswordField
+                key={resetting ? "reset" : mode}
+                label={resetting ? "Новый пароль" : name("account.password")}
+                value={password}
+                onChange={setPassword}
+                disabled={busy}
+                newPassword={resetting || registering}
+                descriptionId={resetting || registering ? "password-help" : undefined}
+              />
+            )}
+            {resetting && (
+              <PasswordField
+                label="Повторите новый пароль"
+                fieldName="passwordConfirmation"
+                value={passwordAgain}
+                onChange={setPasswordAgain}
+                disabled={busy}
+                newPassword
+              />
+            )}
+            {(registering || resetting) && (
+              <p className="account-help" id="password-help">
+                {password.length === 0 ? "От 8 до 64 символов."
+                  : password.length < 8 ? `До минимума ещё ${8 - password.length} симв.`
+                    : password.trim() ? "Длина подходит." : "Добавьте символы кроме пробелов."}
+              </p>
+            )}
+            {(error || (!resetting && (accounts.error || accessDenied))) && (
+              <p className="account-error" role="alert">
+                {error || accounts.error || accessDenied}
+              </p>
+            )}
+            {accounts.error && !resetting && (
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={async () => {
+                  setError("");
+                  try { await refreshAccounts(); }
+                  catch (error) { setError(error instanceof Error ? error.message : "Попробуйте ещё раз."); }
+                }}
+              >
+                {name("account.retryStorage")}
+              </button>
+            )}
+            {notice && (
+              <p className="notice-banner" role="status">
+                {notice}
+              </p>
+            )}
+            <button
+              type="submit"
+              className="button button-primary"
+              disabled={busy || (!!accounts.error && !resetting)}
+            >
+              {busy ? name("account.wait")
+                : resetting ? "Сохранить пароль"
+                  : requestingLink ? "Отправить ссылку"
+                    : registering ? name("account.register") : name("account.signIn")}
+              <ArrowRight size={16} />
+            </button>
+            {resetting && (
+              <button type="button" className="button button-secondary" disabled={busy} onClick={cancelReset}>
+                Отменить восстановление
+              </button>
+            )}
+            {cloudEnabled && mode === "login" && !resetting && (
+              <>
+                <button type="button" className="button button-secondary" disabled={busy} onClick={() => openLinkForm("forgot")}>
+                  Забыли пароль?
+                </button>
+                <button type="button" className="button button-secondary" disabled={busy} onClick={() => openLinkForm("resend")}>
+                  Получить новую ссылку подтверждения
+                </button>
+              </>
+            )}
+          </form>
+        </section>
+      )}
+      {accounts.ready && !accounts.active && (
+        <Link className="account-guest" href="/">
+          <span className="account-guest-icon"><UserRound size={17} aria-hidden="true" /></span>
+          <span>{name("account.guestPractice")}</span>
+          <ArrowRight size={17} aria-hidden="true" />
+        </Link>
       )}
     </div>
   );
