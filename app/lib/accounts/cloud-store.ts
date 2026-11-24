@@ -1,6 +1,10 @@
 "use client";
 import type { AuthError, User } from "@supabase/supabase-js";
-import { getSupabase } from "../supabase/client";
+import {
+  clearPasswordRecovery,
+  getSupabase,
+  hasPasswordRecoverySession,
+} from "../supabase/client";
 import { initial, type Account, type AccountsState } from "./local-store";
 
 type Profile = Omit<Account, "login">;
@@ -117,7 +121,9 @@ function authMessage(error: AuthError, fallback: string) {
     case "email_address_invalid":
       return "Проверьте, правильно ли указан адрес электронной почты.";
     case "email_address_not_authorized":
-      return "Письмо подтверждения не отправлено. Обратитесь к администратору курса.";
+      return "Письмо не отправлено. Обратитесь к администратору курса.";
+    case "same_password":
+      return "Выберите пароль, отличный от текущего.";
     case "weak_password":
       return "Выберите более надёжный пароль.";
     case "over_email_send_rate_limit":
@@ -144,7 +150,7 @@ async function authenticate<T>(action: (current: number) => Promise<T>) {
   }
 }
 
-function emailConfirmationUrl() {
+function accountEmailUrl() {
   return new URL("/account/", window.location.origin).href;
 }
 
@@ -152,9 +158,26 @@ export async function resendCloudConfirmation(login: string) {
   const { error } = await getSupabase().auth.resend({
     type: "signup",
     email: login.trim().toLowerCase(),
-    options: { emailRedirectTo: emailConfirmationUrl() },
+    options: { emailRedirectTo: accountEmailUrl() },
   });
   if (error) throw new Error(authMessage(error, "Не удалось отправить новую ссылку. Попробуйте ещё раз."));
+}
+
+export async function requestCloudPasswordReset(login: string) {
+  const { error } = await getSupabase().auth.resetPasswordForEmail(login.trim().toLowerCase(), {
+    redirectTo: accountEmailUrl(),
+  });
+  if (error) throw new Error(authMessage(error, "Не удалось отправить ссылку для сброса пароля. Попробуйте ещё раз."));
+}
+
+export async function updateCloudPassword(password: string) {
+  if (password.length < 8 || password.length > 64 || !password.trim())
+    throw new Error("Пароль должен содержать от 8 до 64 символов.");
+  if (!await hasPasswordRecoverySession())
+    throw new Error("Сессия восстановления недоступна. Запросите новую ссылку со страницы входа.");
+  const { error } = await getSupabase().auth.updateUser({ password });
+  if (error) throw new Error(authMessage(error, "Не удалось обновить пароль. Попробуйте ещё раз."));
+  clearPasswordRecovery();
 }
 
 export async function registerCloudStudent(input: { name: string; login: string; password: string }) {
@@ -168,7 +191,7 @@ export async function registerCloudStudent(input: { name: string; login: string;
     const { data, error } = await getSupabase().auth.signUp({
       email,
       password: input.password,
-      options: { data: { name }, emailRedirectTo: emailConfirmationUrl() },
+      options: { data: { name }, emailRedirectTo: accountEmailUrl() },
     });
     if (error) throw new Error(authMessage(error, "Не удалось зарегистрироваться. Попробуйте ещё раз."));
     if (!data.session) return { email, confirmationRequired: true as const };
@@ -194,6 +217,7 @@ export async function signIn(login: string, password: string) {
 export async function signOut() {
   const { error } = await getSupabase().auth.signOut({ scope: "local" });
   if (error) throw new Error("Не удалось завершить сеанс. Повторите попытку.");
+  clearPasswordRecovery();
 }
 
 export async function setStudentBlocked(id: string, blocked: boolean) {
