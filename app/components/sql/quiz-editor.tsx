@@ -85,6 +85,7 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
   const name = useSiteNames();
   const [taskId, setTaskId] = useState(tasks[0]?.id ?? "");
   const savedQuestions = useQuizQuestions(taskId);
+  const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState(() => readDrafts(adminId));
   const [saveResults, setSaveResults] = useState<Partial<Record<string, SaveResult>>>({});
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -116,7 +117,8 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
     edit(questions.map((question) => question.id === id ? { ...question, ...patch } : question));
   }
 
-  function save() {
+  async function save() {
+    if (saving) return;
     const normalized = questions.map((question) => ({
       ...question,
       prompt: question.prompt.trim(),
@@ -138,8 +140,9 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
       setSaveResults((current) => ({ ...current, [taskId]: { errors } }));
       return;
     }
+    setSaving(true);
     try {
-      saveQuizQuestions(taskId, normalized);
+      await saveQuizQuestions(taskId, normalized);
       updateDraft(null);
       setSaveResults((current) => ({
         ...current,
@@ -156,6 +159,8 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
           errors: [error instanceof Error ? error.message : "Не удалось сохранить вопросы. Попробуйте ещё раз."],
         },
       }));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -167,7 +172,7 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
       </div>
       <label className={styles.field}>
         {name("practice.task")}
-        <select value={taskId} onChange={(event) => setTaskId(event.target.value)}>
+        <select disabled={saving} value={taskId} onChange={(event) => setTaskId(event.target.value)}>
           {tasks.map((task) => <option key={task.id} value={task.id}>{name(`task.${task.id}`)}{drafts[task.id] ? ` • ${name("admin.draftBadge")}` : ""}</option>)}
         </select>
       </label>
@@ -196,7 +201,8 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
           <p role="status">Тест недоступен. Для этого задания нет вопросов.</p>
         ))}
       </section>
-      <form key={taskId} className={styles.form} noValidate onSubmit={(event) => { event.preventDefault(); save(); }}>
+      <form key={taskId} className={styles.form} noValidate onSubmit={(event) => { event.preventDefault(); void save(); }}>
+        <fieldset disabled={saving} style={{ display: "contents" }}>
         <p className="account-help">{name("admin.questionCount")} {questions.length}.{draft && " Есть несохранённые изменения."}</p>
         {!questions.length && <p className={styles.empty}>Вопросов нет. Сохраните пустой список, чтобы отключить тест для этого задания.</p>}
         {questions.map((question, questionIndex) => (
@@ -247,6 +253,7 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
           <button type="button" className="button button-secondary" onClick={() => edit([...questions, { id: crypto.randomUUID(), prompt: "", options: ["", ""], correctIndex: -1, explanation: "" }])}>{name("admin.addQuestion")}</button>
           <button type="submit" className="button button-primary">{name("admin.saveQuiz")}</button>
         </div>
+        </fieldset>
       </form>
     </section>
   );

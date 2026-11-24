@@ -1,6 +1,8 @@
 import { getTask } from "../lib/sql/course";
 import type { QuizQuestion } from "../lib/sql/quiz";
 import { getStudyScope } from "../lib/sql/store";
+import { getAccounts } from "../lib/accounts/store";
+import { cloudEnabled, getSupabase } from "../lib/supabase/client";
 
 export type QuizResult = { score: number; questionCount: number; completedAt: string };
 
@@ -32,10 +34,39 @@ export function completeQuiz(taskId: string, questions: QuizQuestion[], answers:
   let saved = false;
   // A stale click after switching accounts must never write to another user's scope.
   if (scope === getStudyScope()) {
+    const user = cloudEnabled ? getAccounts().active : null;
+    if (user) return { result, saved: false };
     try {
       window.localStorage.setItem(quizResultKey(taskId, scope), JSON.stringify(result));
       saved = true;
     } catch { /* The caller displays the in-memory result. */ }
   }
   return { result, saved };
+}
+
+export function isCloudQuiz() {
+  return cloudEnabled && Boolean(getAccounts().active);
+}
+
+export async function readCloudQuizResult(taskId: string, scope: string): Promise<QuizResult | null> {
+  const user = getAccounts().active;
+  if (!cloudEnabled || !user || scope !== getStudyScope() || !getTask(taskId)) return null;
+  const { data, error } = await getSupabase().from("codeproof_quiz_results")
+    .select("score, question_count, completed_at").eq("user_id", user.id).eq("task_id", taskId).maybeSingle();
+  if (error) throw new Error("Не удалось загрузить прошлый результат теста.");
+  if (!data || scope !== getStudyScope()) return null;
+  return { score: data.score, questionCount: data.question_count, completedAt: data.completed_at };
+}
+
+export async function saveCloudQuizResult(taskId: string, result: QuizResult, scope: string) {
+  const user = getAccounts().active;
+  if (!cloudEnabled || !user || scope !== getStudyScope() || !getTask(taskId)) return false;
+  const { error } = await getSupabase().from("codeproof_quiz_results").upsert({
+    user_id: user.id,
+    task_id: taskId,
+    score: result.score,
+    question_count: result.questionCount,
+    completed_at: result.completedAt,
+  });
+  return !error;
 }

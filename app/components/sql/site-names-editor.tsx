@@ -18,6 +18,7 @@ export default function SiteNamesEditor() {
   const [changes, setChanges] = useState<NameChanges>({});
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const query = search.trim().toLocaleLowerCase("ru");
   const name = (key: NameKey) => resolveName(key, stored);
   const draft = mergeNameChanges(stored, changes);
@@ -46,17 +47,20 @@ export default function SiteNamesEditor() {
     });
   }
 
-  function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!hasChanges) return;
+    if (!hasChanges || saving) return;
+    setSaving(true);
     setNotice("");
     setError("");
     try {
-      saveSiteNames(changes);
+      await saveSiteNames(changes);
       setChanges({});
       setNotice("Названия сохранены.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось сохранить названия.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -91,6 +95,7 @@ export default function SiteNamesEditor() {
                         name={key}
                         value={value}
                         required
+                        disabled={saving}
                         aria-invalid={pending && !value.trim()}
                         onChange={(event) => change(key, event.target.value)}
                       />
@@ -99,7 +104,7 @@ export default function SiteNamesEditor() {
                       className="button button-secondary"
                       type="button"
                       aria-label={`${name("admin.resetName")} — ${original}`}
-                      disabled={stored[key] === undefined && !pending}
+                      disabled={saving || (stored[key] === undefined && !pending)}
                       onClick={() => change(key, null)}
                     >
                       {name("admin.resetName")}
@@ -117,7 +122,7 @@ export default function SiteNamesEditor() {
         {error && <p className="account-error" role="alert">{error}</p>}
         {notice && <p className="notice-banner" role="status">{notice}</p>}
         <div>
-          <button type="submit" className="button button-primary" disabled={!hasChanges}>{name("admin.saveNames")}</button>
+          <button type="submit" className="button button-primary" disabled={saving || !hasChanges}>{name("admin.saveNames")}</button>
         </div>
       </form>
     </section>

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { getAccounts, refreshAccounts } from "../accounts/store";
+import { cloudEnabled, getSupabase } from "../supabase/client";
 import { getTask, tasks } from "./course";
 
 export type QuizQuestion = {
@@ -46,6 +47,26 @@ const initial = new Map<string, QuizQuestion[]>(tasks.map((task, index) => {
 const cache = new Map<string, { raw: string | null; questions: QuizQuestion[] }>();
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
+let cloudQuestions = new Map<string, QuizQuestion[]>();
+let cloudRequest = 0;
+
+async function loadCloudQuestions() {
+  const request = ++cloudRequest;
+  const { data, error } = await getSupabase().from("codeproof_quizzes").select("task_id, questions");
+  if (error || request !== cloudRequest) return;
+  const next = new Map<string, QuizQuestion[]>();
+  for (const row of data) {
+    if (!getTask(row.task_id)) continue;
+    try { next.set(row.task_id, validateQuizQuestions(row.questions)); }
+    catch { next.set(row.task_id, empty); }
+  }
+  cloudQuestions = next;
+  emit();
+}
+
+function refreshCloudQuestions() {
+  void loadCloudQuestions().catch(() => {});
+}
 
 /** Validates the complete replacement; an empty array deliberately disables a quiz. */
 export function validateQuizQuestions(value: unknown): QuizQuestion[] {
@@ -74,6 +95,7 @@ export function validateQuizQuestions(value: unknown): QuizQuestion[] {
 export function getQuizQuestions(taskId: string): QuizQuestion[] {
   if (!getTask(taskId)) return empty;
   if (typeof window === "undefined") return empty;
+  if (cloudEnabled) return cloudQuestions.get(taskId) ?? initial.get(taskId) ?? empty;
   let raw: string | null;
   try { raw = window.localStorage.getItem(prefix + taskId); }
   catch { return cache.get(taskId)?.questions ?? empty; }
@@ -94,11 +116,21 @@ function onStorage(event: StorageEvent) {
 }
 
 export function subscribeQuizQuestions(listener: () => void) {
-  if (!listeners.size) window.addEventListener("storage", onStorage);
+  if (!listeners.size) {
+    if (cloudEnabled) {
+      refreshCloudQuestions();
+      window.addEventListener("focus", refreshCloudQuestions);
+    } else {
+      window.addEventListener("storage", onStorage);
+    }
+  }
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
-    if (!listeners.size) window.removeEventListener("storage", onStorage);
+    if (!listeners.size) {
+      window.removeEventListener("focus", refreshCloudQuestions);
+      window.removeEventListener("storage", onStorage);
+    }
   };
 }
 
@@ -107,13 +139,23 @@ export function useQuizQuestions(taskId: string): QuizQuestion[] {
 }
 
 /** Throws on invalid input, insufficient permissions, or failed persistence. */
-export function saveQuizQuestions(taskId: string, questions: QuizQuestion[]): void {
+export function saveQuizQuestions(taskId: string, questions: QuizQuestion[]) {
   if (typeof window === "undefined") throw new Error("Сохранение доступно только в браузере.");
-  refreshAccounts();
+  if (!cloudEnabled) refreshAccounts();
   if (getAccounts().active?.role !== "admin") throw new Error("Нужен аккаунт администратора.");
   if (!getTask(taskId)) throw new Error("Задание не найдено.");
   const validated = validateQuizQuestions(questions);
+  if (cloudEnabled) return saveCloudQuestions(taskId, validated);
   try { window.localStorage.setItem(prefix + taskId, JSON.stringify(validated)); }
   catch { throw new Error("Не удалось сохранить вопросы в браузере. Повторите сохранение."); }
+  emit();
+}
+
+async function saveCloudQuestions(taskId: string, questions: QuizQuestion[]) {
+  if (questions.length > 100) throw new Error("В одном тесте может быть до 100 вопросов.");
+  const { error } = await getSupabase().from("codeproof_quizzes").upsert({ task_id: taskId, questions });
+  if (error) throw new Error("Не удалось сохранить вопросы в Supabase.");
+  cloudRequest += 1;
+  cloudQuestions.set(taskId, questions);
   emit();
 }

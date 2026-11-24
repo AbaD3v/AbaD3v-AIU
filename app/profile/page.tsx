@@ -16,6 +16,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useStudy, updateStudy, replaceStudy } from "@/app/lib/sql/store";
+import { cloudEnabled } from "@/app/lib/supabase/client";
 import {
   getStats,
   emptyStudy,
@@ -206,9 +207,12 @@ export default function ProfilePage() {
           <h2>{name("profile.settings")}</h2>
           <p>
             {active
-              ? "Прогресс этого аккаунта хранится отдельно в данном браузере."
+              ? cloudEnabled ? "Прогресс этого аккаунта синхронизируется через Supabase."
+                : "Прогресс этого аккаунта хранится отдельно в данном браузере."
               : "Гостевой прогресс хранится отдельно от аккаунтов в этом браузере."}{" "}
-            Экспортируй его для переноса на другое устройство.
+            {cloudEnabled && active
+              ? "Экспортируйте резервную копию для восстановления."
+              : "Экспортируйте прогресс для переноса на другое устройство."}
           </p>
           {!active && (
             <Link href="/account/" className="text-link">
@@ -302,9 +306,10 @@ export default function ProfilePage() {
       {modal === "reset" && (
         <Modal title={name("profile.resetTitle")} onClose={() => setModal(null)}>
           <p>
-            Будут удалены SQL-решения, черновики, история и заметки в этом
-            браузере. Сначала можно экспортировать прогресс. Данные старой
-            версии CodeProof не затрагиваются.
+            {cloudEnabled && active
+              ? "SQL-решения, черновики, история и заметки аккаунта будут сброшены на всех устройствах."
+              : "SQL-решения, черновики, история и заметки будут сброшены в этом браузере."}{" "}
+            Сначала можно экспортировать прогресс.
           </p>
           <div className="modal-actions">
             <button
