@@ -34,6 +34,7 @@ import {
   useAccounts,
   type Role,
 } from "@/app/lib/accounts/store";
+import googleStyles from "./google-sign-in.module.css";
 import passwordStyles from "./password-field.module.css";
 
 type Mode = "login" | "register" | "resend" | "forgot";
@@ -530,23 +531,24 @@ export default function AccountPage() {
             {resetting && <p className="account-help">Аккаунт {accounts.active?.login}</p>}
             <form className="account-form" onSubmit={submit}>
               {googleAvailable && !accounts.active && (mode === "login" || mode === "register") && (
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  disabled={busy || !!accounts.error}
-                  onClick={() => { void signInWithGoogle(); }}
-                  style={{ backgroundColor: "#fff", borderColor: "#747775", color: "#1f1f1f", gap: 10 }}
-                >
-                  <Image
-                    src="https://developers.google.com/static/identity/images/g-logo.png"
-                    width={18}
-                    height={18}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    unoptimized
-                  />
-                  Войти через Google
-                </button>
+                <div className={googleStyles.option}>
+                  <button
+                    className={googleStyles.button}
+                    type="button"
+                    disabled={busy || !!accounts.error}
+                    onClick={() => { void signInWithGoogle(); }}
+                  >
+                    <Image
+                      src="/google-g.png"
+                      width={18}
+                      height={18}
+                      alt=""
+                      unoptimized
+                    />
+                    <span>Войти через Google</span>
+                  </button>
+                  <span className={googleStyles.divider} aria-hidden="true">или по почте</span>
+                </div>
               )}
               {registering && !resetting && (
                 <label>
