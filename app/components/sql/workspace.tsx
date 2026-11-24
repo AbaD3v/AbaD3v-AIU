@@ -36,6 +36,8 @@ import { SqlClient } from "@/app/lib/sql/client";
 import type { QueryResult, GradeResult } from "@/app/lib/sql/engine";
 import {
   useStudy,
+  useStudySyncStatus,
+  useDraftRecovery,
   getStudyScope,
   saveDraft,
   addAttempt,
@@ -45,6 +47,7 @@ import {
   restartTask,
 } from "@/app/lib/sql/store";
 import { emptyProgress, getNextTask } from "@/app/lib/sql/progress";
+import { MAX_DRAFT_LENGTH } from "@/app/lib/sql/draft-recovery";
 import { DataTable, DatabaseBadge, Modal, downloadText } from "./ui";
 import RestoreQuery from "./restore-query";
 import { useQuizQuestions } from "@/app/lib/sql/quiz";
@@ -66,8 +69,15 @@ export default function Workspace({ taskId }: { taskId: string }) {
   const task = getTask(taskId)!;
   const index = tasks.findIndex((item) => item.id === taskId);
   const state = useStudy();
+  const syncStatus = useStudySyncStatus();
+  const recoveredDraft = useDraftRecovery(taskId);
   const progress = state.progress[taskId] ?? emptyProgress;
-  const code = state.drafts[taskId] ?? task.starter;
+  const draft = state.drafts[taskId];
+  const code = draft ?? task.starter;
+  const draftStatus = draft === undefined ? "" : name(
+    state.storageIssue ? "practice.draftSyncIssue"
+      : syncStatus === "saving" ? "practice.draftSaving" : "practice.draftSaved",
+  );
   const [leftTab, setLeftTab] = useState<"task" | "hints" | "theory">("task");
   const [bottomTab, setBottomTab] = useState<"result" | "check" | "history">(
     "result",
@@ -527,7 +537,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <Editor
               value={code}
               onChange={(value) => {
-                if (value.length > 20000)
+                if (value.length > MAX_DRAFT_LENGTH)
                   setNotice(
                     "Запрос ограничен 20 000 символами. Сохранены первые 20 000 — сократите запрос перед запуском.",
                   );
@@ -574,6 +584,14 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 </button>
               </div>
             </div>
+          </div>
+          <div className="draft-status">
+            <span role="status">{draftStatus}</span>
+            {recoveredDraft !== undefined && (
+              <RestoreQuery taskId={taskId} sql={recoveredDraft}>
+                {name("practice.recoverDraft")}
+              </RestoreQuery>
+            )}
           </div>
           {notice && (
             <p className="notice-banner" role="status">

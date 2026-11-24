@@ -1614,6 +1614,17 @@ select {
   gap: 9px;
   font-size: 12px;
 }
+.draft-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 15px;
+  font-size: 12px;
+  color: #50604e;
+}
+.draft-status:has(> span:not(:empty), > button) {
+  margin: 7px 0;
+}
 .editor-footer {
   display: flex;
   align-items: center;

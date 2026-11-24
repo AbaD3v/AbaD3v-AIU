@@ -10,6 +10,7 @@ import {
   restartTaskState,
   isTaskStarted,
   getContinueTask,
+  getLastOpenedTask,
   getNextTask,
   serializeStudy,
   MAX_BACKUP_BYTES,
@@ -222,4 +223,19 @@ test("backups omit storage errors and remain importable with long non-ASCII quer
   assert.equal(parseStudy(exported).storageIssue, null);
   assert.equal(parseStudy(exported).history.length, 100);
   assert.throws(() => parseStudy("{broken"), /Не удалось прочитать JSON/);
+});
+
+test("profile resumes the last task even if the student solved it", () => {
+  assert.equal(getLastOpenedTask(emptyStudy), undefined);
+  const taskId = tasks[1].id;
+  const state = recordAttempt(emptyStudy, { ...entry, taskId, action: "check", success: true });
+  assert.equal(getLastOpenedTask(state)?.id, taskId);
+  assert.notEqual(getContinueTask(state)?.id, taskId);
+  assert.equal(getLastOpenedTask(parseStudy(serializeStudy(state)))?.id, taskId);
+});
+
+test("profile can resume a legacy draft whose query was cleared", () => {
+  const taskId = tasks[1].id;
+  const legacy = { ...emptyStudy, activeTaskId: taskId, drafts: { [taskId]: "" } };
+  assert.equal(getLastOpenedTask(legacy)?.id, taskId);
 });
