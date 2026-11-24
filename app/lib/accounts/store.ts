@@ -5,7 +5,6 @@ import * as cloud from "./cloud-store";
 import * as local from "./local-store";
 
 export type { Account, Role } from "./local-store";
-export { setupDemoAdmin } from "./local-store";
 export {
   registerCloudStudent,
   resendCloudConfirmation,

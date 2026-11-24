@@ -60,7 +60,7 @@ async function loadAccount(user: User, current: number) {
   const active = { ...data, login: user.email ?? "" };
   const students = active.role === "admin" && state.active?.id === active.id
     ? state.students : [];
-  publish({ ...initial, ready: true, active, students, hasAdmin: true });
+  publish({ ...initial, ready: true, active, students });
   if (active.role === "admin") void loadStudents(current);
   return active;
 }

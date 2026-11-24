@@ -29,7 +29,6 @@ import {
   requestCloudPasswordReset,
   updateCloudPassword,
   refreshAccounts,
-  setupDemoAdmin,
   signIn,
   signOut,
   useAccounts,
@@ -37,7 +36,7 @@ import {
 } from "@/app/lib/accounts/store";
 import passwordStyles from "./password-field.module.css";
 
-type Mode = "login" | "register" | "setup" | "resend" | "forgot";
+type Mode = "login" | "register" | "resend" | "forgot";
 type GuestTransfer = NonNullable<ReturnType<typeof getGuestTransfer>> & { accountId: string; href: string };
 
 function accountHome(role: Role) {
@@ -128,8 +127,7 @@ export default function AccountPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const emailField = useRef<HTMLInputElement>(null);
-  const setup = !cloudEnabled && mode === "setup" && !accounts.hasAdmin;
-  const registering = mode === "register" || setup;
+  const registering = mode === "register";
   const resending = cloudEnabled && mode === "resend";
   const forgotPassword = cloudEnabled && mode === "forgot";
   const requestingLink = resending || forgotPassword;
@@ -342,15 +340,10 @@ export default function AccountPage() {
           }
           return;
         }
-        const create = setup ? setupDemoAdmin : registerStudent;
-        const createdLogin = await create({ name: displayName, login, password });
+        const createdLogin = await registerStudent({ name: displayName, login, password });
         setLogin(createdLogin);
         switchMode("login");
-        setNotice(
-          setup
-            ? "Демо администратор создан. Войдите с выбранным паролем."
-            : "Аккаунт студента создан. Войдите с выбранным паролем.",
-        );
+        setNotice("Аккаунт студента создан. Войдите с выбранным паролем.");
       } else {
         const role = await signIn(login, password);
         enterAccount(role, getAccounts().active?.login ?? login);
@@ -523,15 +516,8 @@ export default function AccountPage() {
               {resetting ? "Новый пароль"
                 : forgotPassword ? "Восстановление пароля"
                   : resending ? "Новая ссылка подтверждения"
-                    : setup ? name("account.setupHeading")
-                      : registering ? name("account.registerTab") : name("account.signInHeading")}
+                    : registering ? name("account.registerTab") : name("account.signInHeading")}
             </h2>
-            {setup && (
-              <p className="account-help">
-                Создайте отдельный логин и учебный пароль. В этом браузере
-                доступен один аккаунт администратора.
-              </p>
-            )}
             {requestingLink && <p className="account-help">Введите адрес, который указали при регистрации.</p>}
             {resetting && <p className="account-help">Аккаунт {accounts.active?.login}</p>}
             <form className="account-form" onSubmit={submit}>
@@ -652,8 +638,7 @@ export default function AccountPage() {
                 {busy ? name("account.wait")
                   : resetting ? "Сохранить пароль"
                     : requestingLink ? "Отправить ссылку"
-                      : setup ? name("account.createAdmin")
-                        : registering ? name("account.register") : name("account.signIn")}
+                      : registering ? name("account.register") : name("account.signIn")}
                 <ArrowRight size={16} />
               </button>
               {resetting && (
@@ -688,25 +673,11 @@ export default function AccountPage() {
               <strong>{name("common.roleAdmin")}</strong> видит прогресс студентов и
               управляет их входом.
             </p>
-            {!cloudEnabled && !accounts.hasAdmin && !setup && (
-              <button
-                className="button button-secondary"
-                disabled={busy || !!accounts.error}
-                onClick={() => {
-                  switchMode("setup");
-                  setDisplayName("");
-                  setLogin("");
-                }}
-              >
-                {name("account.setup")}
-              </button>
-            )}
             {accounts.temporarySession && (
               <small>Вход действует до обновления страницы.</small>
             )}
             {!cloudEnabled && <small>
-              Аккаунты работают локально для демонстрации ролей. На другом
-              устройстве список аккаунтов будет отдельным.
+              У каждого браузера свой список локальных аккаунтов.
             </small>}
             <Link className="text-link" href="/">
               {name("account.guestPractice")}

@@ -4,7 +4,6 @@ import {
   getAccounts,
   refreshAccounts,
   registerStudent,
-  setupDemoAdmin,
   setStudentBlocked,
   signIn,
   signOut,
@@ -27,7 +26,19 @@ function memoryStorage() {
   };
 }
 
-test("student progress stays separate and only the demo admin can suspend or restore a student's login", async () => {
+async function seedLegacyAdmin(
+  storage: ReturnType<typeof memoryStorage>,
+  admin: Parameters<typeof registerStudent>[0],
+) {
+  await registerStudent(admin);
+  const key = "codeproof.accounts.v1";
+  const accounts = JSON.parse(storage.getItem(key)!) as { login: string; role: string }[];
+  accounts.find((account) => account.login === admin.login)!.role = "admin";
+  storage.setItem(key, JSON.stringify(accounts));
+  refreshAccounts();
+}
+
+test("student progress stays separate and a previously saved local admin can manage access", async () => {
   const localStorage = memoryStorage();
   const sessionStorage = memoryStorage();
   const browser = Object.assign(new EventTarget(), {
@@ -81,11 +92,7 @@ test("student progress stays separate and only the demo admin can suspend or res
       JSON.parse(localStorage.getItem(guestKey)!).notes,
       "гостевой черновик",
     );
-    await setupDemoAdmin(admin);
-    await assert.rejects(
-      setupDemoAdmin({ ...admin, login: "another" }),
-      /уже создан/,
-    );
+    await seedLegacyAdmin(localStorage, admin);
     assert.equal(await signIn(admin.login, admin.password), "admin");
     assert.equal(getAccounts().students.length, 1);
     assert.equal(getStats(readStudentStudy(studentId)!).completed, 1);
@@ -128,7 +135,7 @@ test("student progress stays separate and only the demo admin can suspend or res
   }
 });
 
-test("admin setup and sign-in work when the browser blocks access to sessionStorage", async () => {
+test("a previously saved account can sign in when the browser blocks sessionStorage", async () => {
   const localStorage = memoryStorage();
   const browser = Object.assign(new EventTarget(), { localStorage });
   Object.defineProperty(browser, "sessionStorage", {
@@ -143,14 +150,12 @@ test("admin setup and sign-in work when the browser blocks access to sessionStor
   try {
     refreshAccounts();
     assert.equal(getAccounts().error, "");
-    assert.equal(getAccounts().hasAdmin, false);
     const admin = {
       name: "Демо администратор",
       login: "admin",
       password: "admin-demo-only",
     };
-    await setupDemoAdmin(admin);
-    assert.equal(getAccounts().hasAdmin, true);
+    await seedLegacyAdmin(localStorage, admin);
     assert.equal(await signIn(admin.login, admin.password), "admin");
     assert.equal(getAccounts().active?.role, "admin");
     assert.equal(getAccounts().temporarySession, true);
@@ -166,7 +171,8 @@ test("admin setup and sign-in work when the browser blocks access to sessionStor
     localStorage.setItem(key, backup);
     refreshAccounts();
     assert.equal(getAccounts().error, "");
-    assert.equal(getAccounts().hasAdmin, true);
+    assert.equal(await signIn(admin.login, admin.password), "admin");
+    signOut();
   } finally {
     Reflect.deleteProperty(globalThis, "window");
   }

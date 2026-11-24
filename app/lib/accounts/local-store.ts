@@ -13,7 +13,6 @@ export type AccountsState = {
   ready: boolean;
   active: Account | null;
   students: Account[];
-  hasAdmin: boolean;
   temporarySession: boolean;
   error: string;
   accessDenied?: string;
@@ -26,7 +25,6 @@ export const initial: AccountsState = {
   ready: false,
   active: null,
   students: [],
-  hasAdmin: false,
   temporarySession: false,
   error: "",
 };
@@ -129,7 +127,6 @@ function refresh() {
         active?.role === "admin"
           ? accounts.filter((a) => a.role === "student").map(publicAccount)
           : [],
-      hasAdmin: accounts.some((a) => a.role === "admin"),
       temporarySession,
       error: "",
     };
@@ -209,10 +206,11 @@ function persist(accounts: SavedAccount[]) {
   refreshAccounts();
 }
 
-async function createAccount(
-  input: { name: string; login: string; password: string },
-  role: Role,
-) {
+export async function registerStudent(input: {
+  name: string;
+  login: string;
+  password: string;
+}) {
   const name = input.name.trim();
   const login = input.login.trim().toLowerCase();
   if (!name || name.length > 40)
@@ -233,9 +231,6 @@ async function createAccount(
       throw new Error("Выйдите из текущего аккаунта перед регистрацией.");
     if (accounts.some((a) => a.login === login))
       throw new Error("Этот логин уже занят.");
-    if (role === "admin" && accounts.some((a) => a.role === "admin")) {
-      throw new Error("Демо администратор уже создан в этом браузере.");
-    }
   }
   checkAvailability(readAccounts());
   const salt = toHex(crypto.getRandomValues(new Uint8Array(16)));
@@ -244,25 +239,9 @@ async function createAccount(
   checkAvailability(accounts);
   persist([
     ...accounts,
-    { id: crypto.randomUUID(), name, login, role, blocked: false, salt, hash },
+    { id: crypto.randomUUID(), name, login, role: "student", blocked: false, salt, hash },
   ]);
   return login;
-}
-
-export function registerStudent(input: {
-  name: string;
-  login: string;
-  password: string;
-}) {
-  return createAccount(input, "student");
-}
-
-export function setupDemoAdmin(input: {
-  name: string;
-  login: string;
-  password: string;
-}) {
-  return createAccount(input, "admin");
 }
 
 export async function signIn(login: string, password: string) {
