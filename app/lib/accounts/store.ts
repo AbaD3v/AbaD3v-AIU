@@ -6,7 +6,7 @@ import * as local from "./local-store";
 
 export type { Account, Role } from "./local-store";
 export { setupDemoAdmin } from "./local-store";
-export { registerCloudStudent } from "./cloud-store";
+export { registerCloudStudent, resendCloudConfirmation } from "./cloud-store";
 
 export const getAccounts = cloudEnabled ? cloud.getAccounts : local.getAccounts;
 export const subscribeAccounts = cloudEnabled ? cloud.subscribeAccounts : local.subscribeAccounts;

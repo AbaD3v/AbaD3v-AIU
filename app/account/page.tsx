@@ -1,6 +1,6 @@
 "use client";
 import { useSiteNames } from "@/app/lib/site-names/store";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, LogOut, ShieldCheck, UserRound } from "lucide-react";
@@ -14,6 +14,7 @@ import {
 import {
   registerStudent,
   registerCloudStudent,
+  resendCloudConfirmation,
   refreshAccounts,
   setupDemoAdmin,
   signIn,
@@ -22,7 +23,7 @@ import {
   type Role,
 } from "@/app/lib/accounts/store";
 
-type Mode = "login" | "register" | "setup";
+type Mode = "login" | "register" | "setup" | "resend";
 
 function accountHome(role: Role) {
   return role === "admin" ? "/admin/" : "/profile/";
@@ -39,10 +40,12 @@ export default function AccountPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const emailField = useRef<HTMLInputElement>(null);
   const setup = !cloudEnabled && mode === "setup" && !accounts.hasAdmin;
   const registering = mode === "register" || setup;
+  const resending = cloudEnabled && mode === "resend";
   const activeRole = accounts.active?.role;
-  const accessDenied = accounts.accessDenied;
+  const accessDenied = mode === "login" ? accounts.accessDenied : undefined;
 
   useEffect(() => {
     if (!cloudEnabled || !accounts.ready) return;
@@ -55,8 +58,8 @@ export default function AccountPage() {
         router.replace(accountHome(activeRole));
       } else if (!accessDenied) {
         setError(result === "expired"
-          ? "Ссылка истекла или уже использована. Если почта подтверждена, войдите. Иначе повторите регистрацию."
-          : "Не удалось подтвердить почту по этой ссылке. Попробуйте войти или повторите регистрацию.");
+          ? "Ссылка истекла или уже использована. Запросите новую ссылку, если почта ещё не подтверждена."
+          : "Не удалось подтвердить почту по этой ссылке. Запросите новую ссылку.");
       }
     }).catch(() => {
       if (!cancelled) setError("Не удалось проверить ссылку. Обновите страницу и попробуйте ещё раз.");
@@ -78,6 +81,12 @@ export default function AccountPage() {
     setError("");
     setNotice("");
     try {
+      if (resending) {
+        await resendCloudConfirmation(login);
+        switchMode("login");
+        setNotice("Если этот адрес зарегистрирован и ещё не подтверждён, проверьте почту и папку «Спам».");
+        return;
+      }
       if (registering) {
         if (cloudEnabled) {
           const created = await registerCloudStudent({ name: displayName, login, password });
@@ -191,7 +200,7 @@ export default function AccountPage() {
             <div className="account-switch" aria-label={name("account.mode")}>
               <button
                 type="button"
-                aria-pressed={!registering}
+                aria-pressed={mode === "login"}
                 disabled={busy}
                 onClick={() => switchMode("login")}
               >
@@ -211,7 +220,9 @@ export default function AccountPage() {
                 ? name("account.setupHeading")
                 : registering
                   ? name("account.registerTab")
-                  : name("account.signInHeading")}
+                  : resending
+                    ? "Новая ссылка подтверждения"
+                    : name("account.signInHeading")}
             </h2>
             {setup && (
               <p className="account-help">
@@ -219,12 +230,14 @@ export default function AccountPage() {
                 доступен один аккаунт администратора.
               </p>
             )}
+            {resending && <p className="account-help">Введите адрес, который указали при регистрации.</p>}
             <form className="account-form" onSubmit={submit}>
               {registering && (
                 <label>
                   {name("account.name")}
                   <input
                     autoComplete="name"
+                    disabled={busy}
                     required
                     maxLength={40}
                     value={displayName}
@@ -235,8 +248,10 @@ export default function AccountPage() {
               <label>
                 {name(cloudEnabled ? "account.email" : "account.login")}
                 <input
+                  ref={emailField}
                   type={cloudEnabled ? "email" : "text"}
-                  autoComplete="username"
+                  autoComplete={resending ? "email" : "username"}
+                  disabled={busy}
                   required
                   maxLength={cloudEnabled ? 254 : 32}
                   autoCapitalize="none"
@@ -245,21 +260,22 @@ export default function AccountPage() {
                   onChange={(event) => setLogin(event.target.value)}
                 />
               </label>
-              <label>
-                {name("account.password")}
-                <input
-                  type="password"
-                  autoComplete={
-                    registering ? "new-password" : "current-password"
-                  }
-                  required
-                  minLength={registering ? 8 : undefined}
-                  maxLength={64}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  aria-describedby={registering ? "password-help" : undefined}
-                />
-              </label>
+              {!resending && (
+                <label>
+                  {name("account.password")}
+                  <input
+                    type="password"
+                    autoComplete={registering ? "new-password" : "current-password"}
+                    disabled={busy}
+                    required
+                    minLength={registering ? 8 : undefined}
+                    maxLength={64}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    aria-describedby={registering ? "password-help" : undefined}
+                  />
+                </label>
+              )}
               {registering && (
                 <p className="account-help" id="password-help">
                   От 8 до 64 символов.
@@ -289,18 +305,34 @@ export default function AccountPage() {
                 </p>
               )}
               <button
+                type="submit"
                 className="button button-primary"
                 disabled={busy || !!accounts.error}
               >
                 {busy
                   ? name("account.wait")
-                  : setup
-                    ? name("account.createAdmin")
-                    : registering
-                      ? name("account.register")
-                      : name("account.signIn")}
+                  : resending
+                    ? "Отправить ссылку"
+                    : setup
+                      ? name("account.createAdmin")
+                      : registering
+                        ? name("account.register")
+                        : name("account.signIn")}
                 <ArrowRight size={16} />
               </button>
+              {cloudEnabled && mode === "login" && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    switchMode("resend");
+                    emailField.current?.focus();
+                  }}
+                >
+                  Получить новую ссылку подтверждения
+                </button>
+              )}
             </form>
           </section>
           <aside

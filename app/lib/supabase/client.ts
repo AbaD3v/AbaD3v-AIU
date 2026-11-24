@@ -5,7 +5,7 @@ const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 export const cloudEnabled = Boolean(url && key);
 
 let client: SupabaseClient | undefined;
-let signupRedirect = false;
+let signupRedirect: "signup" | "expired" | "invalid" | null = null;
 
 export function getSupabase() {
   if (typeof window === "undefined" || !url || !key) {
@@ -13,10 +13,15 @@ export function getSupabase() {
   }
   if (!client) {
     const { pathname, hash } = window.location;
-    const params = new URLSearchParams(hash.slice(1));
-    signupRedirect = (pathname === "/account" || pathname === "/account/") &&
-      ((params.get("type") === "signup" && params.has("access_token")) ||
-        (params.has("error") && params.has("error_code")));
+    if (pathname === "/account" || pathname === "/account/") {
+      const params = new URLSearchParams(hash.slice(1));
+      const errorCode = params.get("error_code");
+      if (params.has("error") && errorCode) {
+        signupRedirect = errorCode === "otp_expired" ? "expired" : "invalid";
+      } else if (params.get("type") === "signup" && params.has("access_token")) {
+        signupRedirect = "signup";
+      }
+    }
     client = createClient(url, key);
   }
   return client;
@@ -24,15 +29,13 @@ export function getSupabase() {
 
 export async function readEmailConfirmation() {
   const supabase = getSupabase();
-  if (!signupRedirect) return null;
+  if (signupRedirect !== "signup") return signupRedirect;
   const { error } = await supabase.auth.initialize();
-  if (!error) return "confirmed";
-  const code = new URLSearchParams(window.location.hash.slice(1)).get("error_code");
-  return code === "otp_expired" ? "expired" : "invalid";
+  return error ? "invalid" : "confirmed";
 }
 
 export function dismissEmailConfirmation() {
-  signupRedirect = false;
+  signupRedirect = null;
   if (window.location.hash) {
     const url = new URL(window.location.href);
     url.hash = "";

@@ -144,6 +144,19 @@ async function authenticate<T>(action: (current: number) => Promise<T>) {
   }
 }
 
+function emailConfirmationUrl() {
+  return new URL("/account/", window.location.origin).href;
+}
+
+export async function resendCloudConfirmation(login: string) {
+  const { error } = await getSupabase().auth.resend({
+    type: "signup",
+    email: login.trim().toLowerCase(),
+    options: { emailRedirectTo: emailConfirmationUrl() },
+  });
+  if (error) throw new Error(authMessage(error, "Не удалось отправить новую ссылку. Попробуйте ещё раз."));
+}
+
 export async function registerCloudStudent(input: { name: string; login: string; password: string }) {
   const name = input.name.trim();
   const email = input.login.trim().toLowerCase();
@@ -155,7 +168,7 @@ export async function registerCloudStudent(input: { name: string; login: string;
     const { data, error } = await getSupabase().auth.signUp({
       email,
       password: input.password,
-      options: { data: { name }, emailRedirectTo: new URL("/account/", window.location.origin).href },
+      options: { data: { name }, emailRedirectTo: emailConfirmationUrl() },
     });
     if (error) throw new Error(authMessage(error, "Не удалось зарегистрироваться. Попробуйте ещё раз."));
     if (!data.session) return { email, confirmationRequired: true as const };
