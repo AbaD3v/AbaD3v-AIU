@@ -35,6 +35,7 @@ import {
   useAccounts,
   type Role,
 } from "@/app/lib/accounts/store";
+import passwordStyles from "./password-field.module.css";
 
 type Mode = "login" | "register" | "setup" | "resend" | "forgot";
 type GuestTransfer = NonNullable<ReturnType<typeof getGuestTransfer>> & { accountId: string; href: string };
@@ -50,19 +51,30 @@ type PasswordFieldProps = {
   disabled: boolean;
   newPassword: boolean;
   descriptionId?: string;
+  fieldName?: "password" | "passwordConfirmation";
 };
 
-function PasswordField({ label, value, onChange, disabled, newPassword, descriptionId }: PasswordFieldProps) {
+function PasswordField({
+  label,
+  value,
+  onChange,
+  disabled,
+  newPassword,
+  descriptionId,
+  fieldName = "password",
+}: PasswordFieldProps) {
   const inputId = useId();
   const [visible, setVisible] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
+  const toggleLabel = visible ? "Скрыть пароль" : "Показать пароль";
 
   return (
-    <>
-      <label>
-        {label}
+    <div className={passwordStyles.field}>
+      <label htmlFor={inputId}>{label}</label>
+      <div className={passwordStyles.control}>
         <input
           id={inputId}
+          name={fieldName}
           type={visible ? "text" : "password"}
           autoComplete={newPassword ? "new-password" : "current-password"}
           autoCapitalize="none"
@@ -78,19 +90,22 @@ function PasswordField({ label, value, onChange, disabled, newPassword, descript
           onBlur={() => setCapsLock(false)}
           aria-describedby={descriptionId}
         />
-      </label>
-      <button
-        type="button"
-        className="button button-secondary"
-        disabled={disabled}
-        aria-controls={inputId}
-        onClick={() => setVisible((current) => !current)}
-      >
-        {visible ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
-        {visible ? "Скрыть пароль" : "Показать пароль"}
-      </button>
+        <button
+          type="button"
+          className={passwordStyles.toggle}
+          disabled={disabled}
+          aria-controls={inputId}
+          aria-label={fieldName === "passwordConfirmation"
+            ? `${toggleLabel} в поле подтверждения`
+            : toggleLabel}
+          title={toggleLabel}
+          onClick={() => setVisible((current) => !current)}
+        >
+          {visible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+        </button>
+      </div>
       {capsLock && <p className="account-help" role="status">Включён Caps Lock.</p>}
-    </>
+    </div>
   );
 }
 
@@ -556,6 +571,7 @@ export default function AccountPage() {
                 {name(cloudEnabled ? "account.email" : "account.login")}
                 <input
                   ref={emailField}
+                  name="username"
                   type={cloudEnabled ? "email" : "text"}
                   autoComplete={requestingLink ? "email" : "username"}
                   disabled={busy}
@@ -591,6 +607,7 @@ export default function AccountPage() {
               {resetting && (
                 <PasswordField
                   label="Повторите новый пароль"
+                  fieldName="passwordConfirmation"
                   value={passwordAgain}
                   onChange={setPasswordAgain}
                   disabled={busy}
