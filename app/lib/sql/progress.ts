@@ -1,4 +1,5 @@
 import { getTask, tasks } from "./course";
+import { MAX_DRAFT_LENGTH } from "./draft-recovery";
 
 export type TaskProgress = {
   startedAt?: string | null;
@@ -91,7 +92,7 @@ export function parseStudy(raw: string): StudyState {
   const progress: Record<string, TaskProgress> = {};
   for (const task of tasks) {
     const draft = value.drafts[task.id];
-    if (typeof draft === "string") drafts[task.id] = draft.slice(0, 20000);
+    if (typeof draft === "string") drafts[task.id] = draft.slice(0, MAX_DRAFT_LENGTH);
     const item = value.progress[task.id];
     if (object(item)) {
       progress[task.id] = {
@@ -244,6 +245,13 @@ export function restartTaskState(
       [id]: { ...emptyProgress, startedAt: date },
     },
   };
+}
+
+export function getLastOpenedTask(state: StudyState) {
+  const task = getTask(state.activeTaskId);
+  if (task && (isTaskStarted(state, task.id) || state.drafts[task.id] !== undefined)) {
+    return task;
+  }
 }
 
 export function getContinueTask(state: StudyState) {

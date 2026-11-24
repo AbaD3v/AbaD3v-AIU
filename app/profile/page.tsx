@@ -23,6 +23,7 @@ import {
   parseStudy,
   serializeStudy,
   getContinueTask,
+  getLastOpenedTask,
   isTaskStarted,
   MAX_BACKUP_BYTES,
   type StudyState,
@@ -49,6 +50,11 @@ export default function ProfilePage() {
   > | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const nextTask = getContinueTask(state);
+  const lastTask = getLastOpenedTask(state);
+  const practiceTask = lastTask ?? nextTask;
+  const practiceLabel = lastTask
+    ? "profile.continuePractice"
+    : nextTask ? "profile.practice" : "profile.repeat";
   function exportProgress() {
     try {
       downloadText(
@@ -94,9 +100,9 @@ export default function ProfilePage() {
       >
         <Link
           className="button button-primary"
-          href={nextTask ? taskHref(nextTask.id) : "/"}
+          href={practiceTask ? taskHref(practiceTask.id) : "/"}
         >
-          {nextTask ? name("profile.practice") : name("profile.repeat")}
+          {name(practiceLabel)}
           <ArrowRight size={16} />
         </Link>
       </PageHeading>
@@ -130,6 +136,11 @@ export default function ProfilePage() {
                 ? `${name("profile.nextTask")} — ${name(`task.${nextTask.id}`)}.`
                 : "Выбери задачу, запусти запрос и проверь решение."}
           </p>
+          {lastTask && (
+            <p>
+              {name("profile.lastTask")} — <strong>{name(`task.${lastTask.id}`)}</strong>
+            </p>
+          )}
         </div>
         <Award size={86} className="progress-hero-award" strokeWidth={1} />
       </div>
