@@ -13,6 +13,7 @@ export type AccountsState = {
   ready: boolean;
   active: Account | null;
   students: Account[];
+  studentListStatus: "ready" | "loading" | "error";
   temporarySession: boolean;
   error: string;
   accessDenied?: string;
@@ -25,6 +26,7 @@ export const initial: AccountsState = {
   ready: false,
   active: null,
   students: [],
+  studentListStatus: "ready",
   temporarySession: false,
   error: "",
 };
@@ -127,6 +129,7 @@ function refresh() {
         active?.role === "admin"
           ? accounts.filter((a) => a.role === "student").map(publicAccount)
           : [],
+      studentListStatus: "ready",
       temporarySession,
       error: "",
     };

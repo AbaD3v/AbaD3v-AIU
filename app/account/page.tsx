@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Eye, EyeOff, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/app/components/sql/ui";
 import { flushStudy, retryStudySync, updateStudy, useStudySyncStatus } from "@/app/lib/sql/store";
 import { accountDestination, rememberRegistrationTask, suggestEmailAddress } from "@/app/lib/accounts/registration";
@@ -132,6 +132,7 @@ export default function AccountPage() {
   const forgotPassword = cloudEnabled && mode === "forgot";
   const requestingLink = resending || forgotPassword;
   const activeRole = accounts.active?.role;
+  const separateAdminTab = cloudEnabled && activeRole === "admin";
   const activeId = accounts.active?.id;
   const activeLogin = accounts.active?.login ?? "";
   const transfer = guestTransfer?.accountId === activeId ? guestTransfer : null;
@@ -425,11 +426,18 @@ export default function AccountPage() {
             <Link
               className="button button-primary"
               href={accountHome(accounts.active.role)}
+              target={separateAdminTab ? "_blank" : undefined}
+              rel={separateAdminTab ? "noopener" : undefined}
             >
               {accounts.active.role === "admin"
                 ? name("nav.admin")
                 : name("nav.profile")}
-              <ArrowRight size={16} />
+              {separateAdminTab ? (
+                <>
+                  <span className="sr-only"> {name("admin.newTab")}</span>
+                  <ArrowUpRight size={16} aria-hidden="true" />
+                </>
+              ) : <ArrowRight size={16} aria-hidden="true" />}
             </Link>
             <button
               className="button button-secondary"

@@ -45,8 +45,13 @@ const adminLink: NavItem = { href: "/admin/", nameKey: "nav.admin", icon: Shield
 const accountLink: NavItem = { href: "/account/", nameKey: "nav.account", icon: UserRound };
 
 export default function SqlShell({ children }: { children: ReactNode }) {
-  const name = useSiteNames();
   const pathname = usePathname();
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return children;
+  return <LearningShell pathname={pathname}>{children}</LearningShell>;
+}
+
+function LearningShell({ children, pathname }: { children: ReactNode; pathname: string }) {
+  const name = useSiteNames();
   const { active, ready } = useAccounts();
   const accountHref = cloudEnabled && !active ? practiceAccountHref(pathname) : accountLink.href;
   const state = useStudy();
@@ -61,6 +66,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
   const menuButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!mobileOpen) return;
+    const openMenuButton = menuButton.current;
     const bodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const focusable = () =>
@@ -96,7 +102,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
       document.body.style.overflow = bodyOverflow;
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", onResize);
-      menuButton.current?.focus();
+      openMenuButton?.focus();
     };
   }, [mobileOpen]);
   const current = [...links, ...tools, adminLink, accountLink].find((link) =>
@@ -106,16 +112,23 @@ export default function SqlShell({ children }: { children: ReactNode }) {
   );
   function navItem(link: NavItem) {
     const active = current?.href === link.href;
+    const separateTab = link === adminLink && cloudEnabled;
     return (
       <Link
         key={link.href}
         href={link === accountLink ? accountHref : link.href}
+        target={separateTab ? "_blank" : undefined}
+        rel={separateTab ? "noopener" : undefined}
         className={"nav-item " + (active ? "active" : "")}
         aria-current={active ? "page" : undefined}
         onClick={() => setMobileOpen(false)}
       >
         <link.icon size={18} strokeWidth={1.75} />
-        <span>{name(link.nameKey)}</span>
+        <span>
+          {name(link.nameKey)}
+          {separateTab && <span className="sr-only"> {name("admin.newTab")}</span>}
+        </span>
+        {separateTab && <ArrowUpRight size={14} aria-hidden="true" />}
         {active && <span className="nav-active-dot" />}
       </Link>
     );

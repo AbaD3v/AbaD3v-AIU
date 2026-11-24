@@ -1,0 +1,282 @@
+.workspace {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  align-self: start;
+  min-width: 0;
+  height: 100dvh;
+  padding: 26px 16px 18px;
+  overflow-y: auto;
+  border-right: 1px solid #285142;
+  background: #173a30;
+  color: #eaf2ec;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 4px;
+}
+
+.brand div,
+.account span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.emblem {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--lime);
+  color: var(--green-dark);
+}
+
+.brand div span,
+.account small {
+  display: block;
+  color: #b6cec1;
+  font-size: 12px;
+}
+
+.brand strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.nav {
+  display: grid;
+  gap: 5px;
+}
+
+.nav a,
+.account,
+.back {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 9px;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+}
+
+.nav a {
+  border: 1px solid transparent;
+  font-weight: 550;
+}
+
+.nav a:hover,
+.account:hover,
+.back:hover {
+  background: #285142;
+}
+
+.nav a[aria-current] {
+  border-color: #65967b;
+  background: #345e4e;
+  color: #f3faef;
+}
+
+.nav a[aria-current] svg {
+  color: var(--lime);
+}
+
+.sidebarFooter {
+  display: grid;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #416052;
+}
+
+.account strong {
+  display: block;
+}
+
+.back {
+  color: #cde0d5;
+  font-size: 13px;
+}
+
+.main {
+  width: 100%;
+  max-width: 1330px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 42px clamp(22px, 4vw, 60px) 54px;
+}
+
+.heading {
+  margin-bottom: 28px;
+}
+
+.heading h1,
+.gate h1 {
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.heading p,
+.gate p {
+  max-width: 65ch;
+  margin-top: 7px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.gate {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  width: min(560px, calc(100% - 32px));
+  margin: clamp(24px, 8vw, 96px) auto;
+  padding: clamp(18px, 4vw, 32px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.metrics,
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metrics {
+  margin: 0 0 24px;
+}
+
+.metrics > div,
+.shortcut {
+  min-width: 0;
+  padding: 17px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.metrics dt,
+.shortcut p {
+  color: var(--muted);
+}
+
+.metrics dd {
+  margin: 3px 0 0;
+  font-family: "Manrope Variable", sans-serif;
+  font-size: 32px;
+  font-weight: 750;
+}
+
+.shortcut:hover {
+  border-color: #90b46d;
+  background: #f4f8f1;
+}
+
+.shortcutHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--green);
+}
+
+.shortcut h2 {
+  margin: 9px 0 3px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.shortcut p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.listNotice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+  color: var(--muted);
+}
+
+.studentFilters,
+.studentActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studentTable {
+  position: relative;
+}
+
+.studentFilters select {
+  min-height: 40px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+@media (max-width: 780px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .sidebar {
+    position: static;
+    gap: 12px;
+    height: auto;
+    padding: 16px;
+    border-right: 0;
+  }
+
+  .nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sidebarFooter {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-top: 0;
+    padding-top: 6px;
+  }
+
+  .main {
+    padding: 24px 16px 38px;
+  }
+}
+
+@media (max-width: 540px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metrics > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .shortcuts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
