@@ -26,6 +26,7 @@ import { retryStudySync, useStudy, useStudySyncStatus } from "@/app/lib/sql/stor
 import { getStats } from "@/app/lib/sql/progress";
 import { tasks } from "@/app/lib/sql/course";
 import { useAccounts } from "@/app/lib/accounts/store";
+import { practiceAccountHref } from "@/app/lib/accounts/registration";
 import { cloudEnabled } from "@/app/lib/supabase/client";
 
 type NavItem = { href: string; nameKey: NameKey; icon: LucideIcon };
@@ -44,9 +45,15 @@ const adminLink: NavItem = { href: "/admin/", nameKey: "nav.admin", icon: Shield
 const accountLink: NavItem = { href: "/account/", nameKey: "nav.account", icon: UserRound };
 
 export default function SqlShell({ children }: { children: ReactNode }) {
-  const name = useSiteNames();
   const pathname = usePathname();
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return children;
+  return <LearningShell pathname={pathname}>{children}</LearningShell>;
+}
+
+function LearningShell({ children, pathname }: { children: ReactNode; pathname: string }) {
+  const name = useSiteNames();
   const { active, ready } = useAccounts();
+  const accountHref = cloudEnabled && !active ? practiceAccountHref(pathname) : accountLink.href;
   const state = useStudy();
   const syncStatus = useStudySyncStatus();
   const studyPage = pathname === "/" || /^\/(practice|profile|checklist|notes|history|quiz)(\/|$)/.test(pathname);
@@ -59,6 +66,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
   const menuButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!mobileOpen) return;
+    const openMenuButton = menuButton.current;
     const bodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const focusable = () =>
@@ -94,7 +102,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
       document.body.style.overflow = bodyOverflow;
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", onResize);
-      menuButton.current?.focus();
+      openMenuButton?.focus();
     };
   }, [mobileOpen]);
   const current = [...links, ...tools, adminLink, accountLink].find((link) =>
@@ -104,16 +112,23 @@ export default function SqlShell({ children }: { children: ReactNode }) {
   );
   function navItem(link: NavItem) {
     const active = current?.href === link.href;
+    const separateTab = link === adminLink && cloudEnabled;
     return (
       <Link
         key={link.href}
-        href={link.href}
+        href={link === accountLink ? accountHref : link.href}
+        target={separateTab ? "_blank" : undefined}
+        rel={separateTab ? "noopener" : undefined}
         className={"nav-item " + (active ? "active" : "")}
         aria-current={active ? "page" : undefined}
         onClick={() => setMobileOpen(false)}
       >
         <link.icon size={18} strokeWidth={1.75} />
-        <span>{name(link.nameKey)}</span>
+        <span>
+          {name(link.nameKey)}
+          {separateTab && <span className="sr-only"> {name("admin.newTab")}</span>}
+        </span>
+        {separateTab && <ArrowUpRight size={14} aria-hidden="true" />}
         {active && <span className="nav-active-dot" />}
       </Link>
     );
@@ -186,7 +201,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
           </Link>
           <Link
             className="profile-link"
-            href="/account/"
+            href={accountHref}
             onClick={() => setMobileOpen(false)}
           >
             <span className="avatar">
@@ -237,7 +252,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
                   : syncStatus === "loading" ? "Загрузка…"
                     : name("nav.localProgress")}
             </span>
-            <Link href="/account/" className="topbar-account">
+            <Link href={accountHref} className="topbar-account">
               <UserRound size={15} />
               {active ? name("nav.account") : name("account.signIn")}
             </Link>
@@ -255,7 +270,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
         <main id="main-content" tabIndex={-1}>
           {studyLoading ? <p className="page" role="status">Загружаем прогресс…</p>
             : studyUnavailable ? <p className="page" role="status">Не удалось открыть сохранения аккаунта.</p>
-              : <Fragment key={active?.id ?? "guest"}>{children}</Fragment>}
+              : <Fragment key={pathname.startsWith("/account") ? "account-page" : active?.id ?? "guest"}>{children}</Fragment>}
         </main>
       </div>
     </div>
