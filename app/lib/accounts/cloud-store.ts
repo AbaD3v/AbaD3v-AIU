@@ -35,8 +35,12 @@ export async function refreshAccounts() {
     }
     return await loadAccount(session.user, current);
   } catch (error) {
-    if (current === request && !state.active && !state.accessDenied) {
-      publish({ ...initial, ready: true, error: profileErrorMessage });
+    if (current === request) {
+      if (!state.active && !state.accessDenied) {
+        publish({ ...initial, ready: true, error: profileErrorMessage });
+      } else if (state.studentListStatus === "loading") {
+        publish({ ...state, studentListStatus: "error" });
+      }
     }
     throw (error instanceof Error && error.message === blockedMessage)
       ? error : new Error(profileErrorMessage);
@@ -60,7 +64,13 @@ async function loadAccount(user: User, current: number) {
   const active = { ...data, login: user.email ?? "" };
   const students = active.role === "admin" && state.active?.id === active.id
     ? state.students : [];
-  publish({ ...initial, ready: true, active, students });
+  publish({
+    ...initial,
+    ready: true,
+    active,
+    students,
+    studentListStatus: active.role === "admin" ? "loading" : "ready",
+  });
   if (active.role === "admin") void loadStudents(current);
   return active;
 }
@@ -78,10 +88,10 @@ async function loadStudents(current: number) {
       students.push(...data);
       if (data.length < pageSize) break;
     }
-    publish({ ...state, students });
+    publish({ ...state, students, studentListStatus: "ready" });
   } catch {
     if (current === request) {
-      publish({ ...state, error: "Не удалось загрузить список студентов. Повторите попытку." });
+      publish({ ...state, studentListStatus: "error" });
     }
   }
 }
