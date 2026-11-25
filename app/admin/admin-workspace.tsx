@@ -5,6 +5,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   ClipboardList,
   LayoutDashboard,
   ShieldCheck,
@@ -17,11 +18,13 @@ import { useSiteNames } from "@/app/lib/site-names/store";
 import QuizEditor from "@/app/components/sql/quiz-editor";
 import SiteNamesEditor from "@/app/components/sql/site-names-editor";
 import StudentPanel from "./student-panel";
+import PracticeContentEditor from "./practice-content-editor";
 import styles from "./admin-workspace.module.css";
 
 const sections = [
   { id: "overview", title: "admin.overview", description: "admin.overviewIntro", Icon: LayoutDashboard },
   { id: "students", title: "admin.students", description: "admin.studentsIntro", Icon: UsersRound },
+  { id: "practice", title: "admin.practiceContent", description: "admin.practiceContentIntro", Icon: BookOpen },
   { id: "quizzes", title: "admin.quizzes", description: "admin.quizzesIntro", Icon: ClipboardList },
   { id: "texts", title: "admin.siteTexts", description: "admin.siteTextsIntro", Icon: Type },
 ] as const;
@@ -188,6 +191,9 @@ function Workspace({
         {section.id === "students" && (
           <StudentPanel adminId={admin.id} students={students} showEmpty={studentListStatus === "ready"} />
         )}
+        <div hidden={section.id !== "practice"}>
+          <PracticeContentEditor />
+        </div>
         <div hidden={section.id !== "quizzes"}>
           <QuizEditor adminId={admin.id} />
         </div>

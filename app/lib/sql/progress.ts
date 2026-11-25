@@ -232,13 +232,14 @@ export function restartTaskState(
   state: StudyState,
   id: string,
   date: string,
+  starter?: string,
 ): StudyState {
   const task = getTask(id);
   if (!task) return state;
   return {
     ...state,
     activeTaskId: id,
-    drafts: { ...state.drafts, [id]: task.starter },
+    drafts: { ...state.drafts, [id]: starter ?? task.starter },
     progress: {
       ...state.progress,
       [id]: { ...emptyProgress, startedAt: date },

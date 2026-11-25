@@ -27,12 +27,17 @@ export async function refreshCloudNames() {
   loadStatus = "loading";
   notify();
   try {
-    const { data, error } = await getSupabase().from("codeproof_site_names").select("key, value");
-    if (request !== cloudRequest) return;
-    if (error) throw error;
     const next: NameValues = {};
-    for (const { key, value } of data) {
-      if (nameDefaults.has(key as NameKey) && typeof value === "string") next[key as NameKey] = value;
+    const pageSize = 500;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await getSupabase().from("codeproof_site_names")
+        .select("key, value").order("key").range(offset, offset + pageSize - 1);
+      if (request !== cloudRequest) return;
+      if (error) throw error;
+      for (const { key, value } of data) {
+        if (nameDefaults.has(key as NameKey) && typeof value === "string") next[key as NameKey] = value;
+      }
+      if (data.length < pageSize) break;
     }
     cloudNames = next;
     loadStatus = "ready";
@@ -139,7 +144,11 @@ export async function saveSiteNames(changes: NameChanges) {
   }
 
   try {
-    const next = mergeNameChanges(values, normalized);
+    // Other versions of the admin panel may already have published additional keys.
+    const raw = window.localStorage.getItem(siteNamesStorageKey);
+    const previous = raw === null ? {} : JSON.parse(raw);
+    if (!previous || typeof previous !== "object" || Array.isArray(previous)) throw new Error();
+    const next = mergeNameChanges(previous, normalized);
     if (Object.keys(next).length) window.localStorage.setItem(siteNamesStorageKey, JSON.stringify(next));
     else window.localStorage.removeItem(siteNamesStorageKey);
   } catch {

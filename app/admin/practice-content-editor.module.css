@@ -1,0 +1,104 @@
+.editor {
+  display: grid;
+  grid-template-columns: minmax(200px, 26%) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(12px, 2vw, 24px);
+  color: var(--ink);
+}
+
+.library, .panel {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.library { position: sticky; top: 16px; }
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px;
+  padding: 9px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.search:focus-within { outline: 2px solid var(--green); }
+.search input { min-width: 0; width: 100%; background: transparent; border: 0; font: inherit; font-size: .85rem; }
+.search input:focus { outline: none; }
+.outline { max-height: calc(100dvh - 140px); overflow-y: auto; padding: 0 10px 12px; }
+.group { padding: 10px 0; }
+.group + .group { border-top: 1px solid var(--line); }
+.group h3 { padding: 0 9px 6px; color: var(--muted); font-size: .78rem; font-weight: 650; }
+.group button {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  text-align: left;
+  font: inherit;
+  font-size: .88rem;
+  line-height: 1.45;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  color: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.group button:hover { background: var(--bg); }
+.group button[aria-current] { color: var(--green-dark); background: #e8f0e3; font-weight: 650; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none; }
+.header, .fields, .footer, .empty { padding: clamp(16px, 2.2vw, 28px); }
+.header { border-bottom: 1px solid var(--line); }
+.header h2, .empty h2 { margin: 8px 0 0; font-size: clamp(1.16rem, 2vw, 1.5rem); line-height: 1.35; overflow-wrap: anywhere; }
+.context { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: .8rem; color: var(--muted); }
+.topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.topics button { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); font: inherit; font-size: .83rem; padding: 5px 10px; cursor: pointer; }
+.topics button[aria-pressed="true"] { border-color: var(--green); color: white; background: var(--green); }
+.fields { display: grid; gap: 24px; }
+.field { display: grid; gap: 6px; min-width: 0; }
+.fieldHeading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.field label { font-size: .94rem; font-weight: 650; overflow-wrap: anywhere; }
+.field input, .field textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #bccac3;
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  line-height: 1.55;
+}
+.field textarea { resize: vertical; }
+.field .sql { font-family: ui-monospace, Consolas, monospace; font-size: .88rem; background: #f5f8f5; tab-size: 2; }
+.field [aria-invalid="true"] { border-color: #a43a33; }
+.editor :is(button,input,textarea):focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.field small, .publishRow span { color: var(--muted); font-size: .82rem; }
+.reset { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 6px; color: var(--green); background: transparent; cursor: pointer; }
+.reset:hover:enabled { background: #edf4ec; }
+.editor button:disabled { opacity: .5; cursor: default; }
+.reset:disabled { opacity: .25; }
+.footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-block: 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 16px 16px;
+}
+.publishRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.problem { margin: 0 0 10px; color: #9a332c; }
+.problem button { color: inherit; font: inherit; text-decoration: underline; background: none; border: 0; cursor: pointer; }
+.empty { display: grid; justify-items: start; gap: 12px; }
+@media (max-width: 980px) {
+  .editor { grid-template-columns: minmax(0, 1fr); }
+  .library { position: static; }
+  .outline { max-height: 180px; }
+}
