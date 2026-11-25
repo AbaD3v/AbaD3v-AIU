@@ -7,7 +7,6 @@ import { indentWithTab } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { useMemo } from "react";
-import { sqlSchema } from "@/app/lib/sql/schema";
 
 const theme = EditorView.theme(
   {
@@ -58,11 +57,13 @@ const highlight = HighlightStyle.define([
 ]);
 export default function SqlEditor({
   value,
+  schema,
   onChange,
   onRun,
   onCheck,
 }: {
   value: string;
+  schema: Record<string, string[]>;
   onChange: (value: string) => void;
   onRun: () => void;
   onCheck: () => void;
@@ -70,7 +71,7 @@ export default function SqlEditor({
   const name = useSiteNames();
   const extensions = useMemo(
     () => [
-      sql({ dialect: SQLite, schema: sqlSchema, upperCaseKeywords: true }),
+      sql({ dialect: SQLite, schema, upperCaseKeywords: true }),
       syntaxHighlighting(highlight),
       keymap.of([
         {
@@ -95,7 +96,7 @@ export default function SqlEditor({
         spellcheck: "false",
       }),
     ],
-    [name, onRun, onCheck],
+    [name, onRun, onCheck, schema],
   );
   return (
     <CodeMirror

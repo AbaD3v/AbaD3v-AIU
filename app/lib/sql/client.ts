@@ -1,4 +1,5 @@
 import type { GradeResult, QueryResult } from "./engine";
+import type { TrainingDatabase } from "./training-database";
 
 export class SqlClient {
   private worker: Worker | null = null;
@@ -82,14 +83,19 @@ export class SqlClient {
     });
   }
 
-  async run(sql: string): Promise<QueryResult> {
+  async run(sql: string, database?: TrainingDatabase): Promise<QueryResult> {
     await this.init();
-    return this.send("run", { sql }) as Promise<QueryResult>;
+    return this.send("run", { sql, database }) as Promise<QueryResult>;
   }
 
-  async grade(taskId: string, sql: string): Promise<GradeResult> {
+  async grade(taskId: string, sql: string, database?: TrainingDatabase): Promise<GradeResult> {
     await this.init();
-    return this.send("grade", { taskId, sql }) as Promise<GradeResult>;
+    return this.send("grade", { taskId, sql, database }) as Promise<GradeResult>;
+  }
+
+  async validateDatabase(database: TrainingDatabase) {
+    await this.init();
+    await this.send("validate-database", { database }, 15000);
   }
 
   destroy(message = "Выполнение отменено.") {
