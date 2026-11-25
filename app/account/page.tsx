@@ -1,11 +1,12 @@
 "use client";
 import { useSiteNames } from "@/app/lib/site-names/store";
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, ArrowUpRight, Eye, EyeOff, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/app/components/sql/ui";
+import { getTask, taskHref } from "@/app/lib/sql/course";
 import { flushStudy, retryStudySync, updateStudy, useStudySyncStatus } from "@/app/lib/sql/store";
 import { accountDestination, rememberRegistrationTask, suggestEmailAddress } from "@/app/lib/accounts/registration";
 import {
@@ -42,6 +43,22 @@ type GuestTransfer = NonNullable<ReturnType<typeof getGuestTransfer>> & { accoun
 
 function accountHome(role: Role) {
   return role === "admin" ? "/admin/" : "/profile/";
+}
+
+function GuestPracticeLink() {
+  const name = useSiteNames();
+  const task = getTask(useSearchParams().get("task") ?? "");
+
+  return (
+    <Link className="account-guest" href={task ? taskHref(task.id) : "/"}>
+      <span className="account-guest-icon"><UserRound size={17} aria-hidden="true" /></span>
+      <span className="account-guest-text">
+        <span>{name(task ? "account.guestReturn" : "account.guestPractice")}</span>
+        {task && <small>{name(`task.${task.id}`)}</small>}
+      </span>
+      <ArrowRight size={17} aria-hidden="true" />
+    </Link>
+  );
 }
 
 type PasswordFieldProps = {
@@ -669,11 +686,9 @@ export default function AccountPage() {
         </section>
       )}
       {accounts.ready && !accounts.active && (
-        <Link className="account-guest" href="/">
-          <span className="account-guest-icon"><UserRound size={17} aria-hidden="true" /></span>
-          <span>{name("account.guestPractice")}</span>
-          <ArrowRight size={17} aria-hidden="true" />
-        </Link>
+        <Suspense fallback={null}>
+          <GuestPracticeLink />
+        </Suspense>
       )}
     </div>
   );

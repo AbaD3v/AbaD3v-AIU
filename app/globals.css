@@ -4523,6 +4523,8 @@ select {
 }
 .account-guest:hover { background: #e5efdf; border-color: #90b46d; }
 .account-guest:active { background: #dcebd4; }
+.account-guest-text { display: grid; gap: 2px; }
+.account-guest-text small { color: var(--muted); font-size: 13px; font-weight: 500; }
 .account-guest-icon {
   display: grid;
   width: 34px;

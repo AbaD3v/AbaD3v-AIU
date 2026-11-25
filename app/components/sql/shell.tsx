@@ -53,7 +53,7 @@ export default function SqlShell({ children }: { children: ReactNode }) {
 function LearningShell({ children, pathname }: { children: ReactNode; pathname: string }) {
   const name = useSiteNames();
   const { active, ready } = useAccounts();
-  const accountHref = cloudEnabled && !active ? practiceAccountHref(pathname) : accountLink.href;
+  const accountHref = active ? accountLink.href : practiceAccountHref(pathname);
   const state = useStudy();
   const syncStatus = useStudySyncStatus();
   const studyPage = pathname === "/" || /^\/(practice|profile|checklist|notes|history|quiz)(\/|$)/.test(pathname);
