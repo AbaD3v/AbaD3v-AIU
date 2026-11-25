@@ -1,21 +1,28 @@
 "use client";
-import { useSiteNames } from "@/app/lib/site-names/store";
+import { refreshCloudNames, useNamesLoadStatus, useNameValues, useSiteNames } from "@/app/lib/site-names/store";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, BookOpen, Search } from "lucide-react";
 import { tasks, taskHref } from "@/app/lib/sql/course";
-import { trainingTask } from "@/app/lib/sql/training-database";
+import { resolveReferenceCard } from "@/app/lib/sql/reference";
 import { useTrainingDatabase } from "@/app/lib/sql/training-database-store";
 import { PageHeading } from "@/app/components/sql/ui";
 
 export default function ReferencePage() {
   const name = useSiteNames();
   const { config } = useTrainingDatabase();
+  const loadStatus = useNamesLoadStatus();
+  const values = useNameValues();
   const [search, setSearch] = useState("");
-  const selected = tasks.filter((task) =>
-    (`${task.tags.join(" ")} ${name(`task.${task.id}`)} ${task.theory}`)
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+  const cards = tasks.map((task, index) => ({
+    id: task.id,
+    number: index + 1,
+    ...resolveReferenceCard(task, values, config),
+  }));
+  const selected = cards.filter((card) =>
+    `${card.tags} ${card.title} ${card.theory} ${card.example}`
+      .toLocaleLowerCase("ru")
+      .includes(search.trim().toLocaleLowerCase("ru")),
   );
   return (
     <div className="page reference-page">
@@ -64,27 +71,31 @@ export default function ReferencePage() {
           результату.
         </p>
       </div>
+      {loadStatus === "loading" && <p role="status">Загружаем справочник…</p>}
+      {loadStatus === "error" && <div role="alert">
+        <p>Не удалось загрузить обновления справочника. Показаны доступные материалы.</p>
+        <button type="button" className="button button-secondary" onClick={() => void refreshCloudNames()}>
+          Повторить загрузку справочника
+        </button>
+      </div>}
       <div className="reference-grid">
-        {selected.map((original) => {
-          const task = trainingTask(original, config);
-          return (
-            <article className="reference-card" key={task.id}>
-              <div>
-                <span className="reference-number">
-                  {String(tasks.indexOf(original) + 1).padStart(2, "0")}
-                </span>
-                <span className="reference-tags">{task.tags.join(" / ")}</span>
-              </div>
-              <h2>{name(`task.${task.id}`)}</h2>
-              <p>{task.theory}</p>
-              <pre className="code-snippet">{task.example}</pre>
-              <Link className="text-link" href={taskHref(task.id)}>
-                {name("reference.tryTask")}
-                <ArrowUpRight size={15} />
-              </Link>
-            </article>
-          );
-        })}
+        {selected.map((card) => (
+          <article className="reference-card" key={card.id}>
+            <div>
+              <span className="reference-number">
+                {String(card.number).padStart(2, "0")}
+              </span>
+              <span className="reference-tags">{card.tags}</span>
+            </div>
+            <h2>{card.title}</h2>
+            <p style={{ whiteSpace: "pre-wrap" }}>{card.theory}</p>
+            <pre className="code-snippet">{card.example}</pre>
+            <Link className="text-link" href={taskHref(card.id)}>
+              {name("reference.tryTask")}
+              <ArrowUpRight size={15} />
+            </Link>
+          </article>
+        ))}
       </div>
       {!selected.length && (
         <div className="empty-state">
