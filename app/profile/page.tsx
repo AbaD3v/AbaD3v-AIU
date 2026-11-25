@@ -15,7 +15,7 @@ import {
   Target,
   Upload,
 } from "lucide-react";
-import { useStudy, updateStudy, replaceStudy } from "@/app/lib/sql/store";
+import { useStudy, updateStudy, replaceStudy, useStudySyncStatus } from "@/app/lib/sql/store";
 import { cloudEnabled } from "@/app/lib/supabase/client";
 import {
   getStats,
@@ -39,6 +39,8 @@ export default function ProfilePage() {
   const name = useSiteNames();
   const { active } = useAccounts();
   const state = useStudy();
+  const syncStatus = useStudySyncStatus();
+  const unavailable = syncStatus === "loading" || syncStatus === "load-error";
   const stats = getStats(state);
   const [modal, setModal] = useState<"reset" | "import" | "undo" | null>(null);
   const [notice, setNotice] = useState("");
@@ -214,6 +216,16 @@ export default function ProfilePage() {
               ? "Экспортируйте резервную копию для восстановления."
               : "Экспортируйте прогресс для переноса на другое устройство."}
           </p>
+          <p role="status">
+            {syncStatus === "loading" ? "Загружаем сохранения аккаунта…"
+              : syncStatus === "load-error" ? "Сохранения аккаунта пока недоступны."
+                : syncStatus === "conflict" ? "Изменения этой вкладки ещё не отправлены: сохранение изменилось на другом устройстве."
+                  : syncStatus === "save-error" ? "Изменения этой вкладки ещё не синхронизированы. Повторите сохранение."
+                    : syncStatus === "saving" ? "Синхронизируем изменения…"
+                      : syncStatus === "synced" ? "Изменения сохранены в облаке."
+                        : state.storageIssue ? "Изменения доступны только в этой вкладке."
+                          : "Сохранение в этом браузере."}
+          </p>
           {!active && (
             <Link href="/account/" className="text-link">
               {name("account.entry")} <ArrowRight size={14} />
@@ -223,6 +235,7 @@ export default function ProfilePage() {
             {name("profile.name")}
             <input
               value={state.name}
+              disabled={unavailable}
               maxLength={40}
               onChange={(event) =>
                 updateStudy((current) => ({
@@ -244,7 +257,7 @@ export default function ProfilePage() {
           </button>
           <button
             className="button button-secondary"
-            disabled={loading}
+            disabled={loading || unavailable}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
@@ -260,7 +273,7 @@ export default function ProfilePage() {
           />
           <button
             className="danger-link"
-            disabled={loading}
+            disabled={loading || unavailable}
             onClick={() => setModal("reset")}
           >
             <RotateCcw size={14} />
@@ -291,11 +304,12 @@ export default function ProfilePage() {
             </button>
             <button
               className="button button-primary"
+              disabled={unavailable}
               onClick={() => {
                 replaceStudy(backup);
                 setBackup(null);
                 closeModal();
-                setNotice("Предыдущий прогресс возвращён.");
+                setNotice("Предыдущий прогресс возвращён в этой вкладке.");
               }}
             >
               {name("profile.restore")}
@@ -326,11 +340,12 @@ export default function ProfilePage() {
             </button>
             <button
               className="button button-danger"
+              disabled={unavailable}
               onClick={() => {
                 setBackup(state);
                 replaceStudy({ ...emptyStudy, name: state.name });
                 setModal(null);
-                setNotice("SQL-прогресс сброшен.");
+                setNotice("SQL-прогресс сброшен в этой вкладке.");
               }}
             >
               {name("profile.reset")}
@@ -357,12 +372,13 @@ export default function ProfilePage() {
             </button>
             <button
               className="button button-primary"
+              disabled={unavailable}
               onClick={() => {
                 setBackup(state);
                 replaceStudy(imported);
                 setImported(null);
                 setModal(null);
-                setNotice("Прогресс восстановлен.");
+                setNotice("Прогресс из файла открыт в этой вкладке.");
               }}
             >
               {name("common.restore")}

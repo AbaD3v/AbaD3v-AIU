@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { getTask, taskHref } from "../lib/sql/course";
 import { useQuizQuestions, type QuizQuestion } from "../lib/sql/quiz";
 import { useAccounts } from "../lib/accounts/store";
-import { getStudyScope, useStudy } from "../lib/sql/store";
-import { completeQuiz, isCloudQuiz, readCloudQuizResult, readQuizResult, saveCloudQuizResult } from "./results";
+import { getStudyScope, useStudy, useStudySyncStatus } from "../lib/sql/store";
+import { completeQuiz, isCloudQuiz, readCloudQuizResult, readPendingQuizResult, readQuizResult, retryQuizResultSync, saveCloudQuizResult, useQuizSyncStatus } from "./results";
 import styles from "./quiz.module.css";
 
 export default function QuizChat() {
@@ -23,6 +23,7 @@ function QuizForUser({ taskId }: { taskId: string }) {
   const name = useSiteNames();
   const task = getTask(taskId);
   const study = useStudy();
+  const studySync = useStudySyncStatus();
   const questions = useQuizQuestions(taskId);
   const taskName = task ? name(`task.${task.id}`) : "";
   const quizTitle = task ? name(`quiz.title.${task.id}`) : name("quiz.heading");
@@ -34,6 +35,7 @@ function QuizForUser({ taskId }: { taskId: string }) {
       <h1>{quizTitle}</h1>
       {taskName && taskName !== quizTitle && <p>{taskName}</p>}
       {!task ? <p role="status">Задание не найдено. Выберите задание из списка.</p>
+        : studySync === "loading" || studySync === "load-error" ? <p role="status">Дождитесь загрузки прогресса, чтобы открыть тест.</p>
         : !questions.length ? <p role="status">Тест недоступен: он отключён администратором или вопросы не удалось загрузить.</p>
         : !study.progress[taskId]?.solvedAt ? <p role="status">Сначала решите задание и получите успешную проверку SQL. После этого откроется тест на понимание. <Link href={taskHref(taskId)}>{name("quiz.toTask")}</Link></p>
         : <Attempt key={taskId + JSON.stringify(questions)} taskId={taskId} questions={questions} />}
@@ -49,12 +51,15 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
   const name = useSiteNames();
   const scope = getStudyScope();
   const cloud = isCloudQuiz();
-  const [lastResult, setLastResult] = useState(() => training || cloud ? null : readQuizResult(taskId, scope));
+  const syncStatus = useQuizSyncStatus();
+  const [lastResult, setLastResult] = useState(() => training ? null : cloud ? readPendingQuizResult(taskId, scope) : readQuizResult(taskId, scope));
   const [showTraining, setShowTraining] = useState(false);
   const [storageIssue, setStorageIssue] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [resultLoad, setResultLoad] = useState<"loading" | "ready" | "error">(cloud && !training ? "loading" : "ready");
+  const [loadRequest, setLoadRequest] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
   const submitted = useRef<number[]>([]);
+  const completions = useRef(0);
   const [current, setCurrent] = useState(0);
   const end = useRef<HTMLDivElement>(null);
   const finished = answers.length === questions.length;
@@ -66,24 +71,20 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [answers.length, current, showTraining]);
 
   useEffect(() => {
-    if (training || !cloud) return;
+    if (training || !cloud || syncStatus === "saving") return;
     let mounted = true;
+    const completion = completions.current;
     void readCloudQuizResult(taskId, scope).then((result) => {
-      if (mounted && submitted.current.length !== questions.length) setLastResult(result);
-    }).catch(() => {});
+      if (!mounted) return;
+      if (completions.current === completion) {
+        const pending = readPendingQuizResult(taskId, scope);
+        const loaded = pending && (!result || Date.parse(pending.completedAt) > Date.parse(result.completedAt)) ? pending : result;
+        setLastResult((current) => current && (!loaded || Date.parse(current.completedAt) > Date.parse(loaded.completedAt)) ? current : loaded);
+      }
+      setResultLoad("ready");
+    }).catch(() => { if (mounted) setResultLoad("error"); });
     return () => { mounted = false; };
-  }, [cloud, taskId, scope, training, questions.length]);
-
-  async function persistResult(result: NonNullable<typeof lastResult>) {
-    setSaving(true);
-    try {
-      setStorageIssue(!await saveCloudQuizResult(taskId, result, scope));
-    } catch {
-      setStorageIssue(true);
-    } finally {
-      setSaving(false);
-    }
-  }
+  }, [cloud, taskId, scope, training, loadRequest, syncStatus]);
 
   function answerQuestion(answer: number) {
     if (submitted.current.length !== current || scope !== getStudyScope()) return;
@@ -91,25 +92,33 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
     submitted.current = next;
     setAnswers(next);
     if (!training && next.length === questions.length) {
+      completions.current += 1;
       const completion = completeQuiz(taskId, questions, next, scope);
       setLastResult(completion.result);
-      if (cloud) void persistResult(completion.result);
+      if (cloud) void saveCloudQuizResult(taskId, completion.result, scope);
       else setStorageIssue(!completion.saved);
     }
   }
 
   // A separate mounted instance owns training answers; the full attempt stays intact.
-  if (showTraining) return <Attempt training taskId={taskId}
-    questions={mistakes.map(({ question }) => question)} onReturn={() => setShowTraining(false)} />;
+  if (showTraining) return <>
+    {lastResult && <p role="status">{name("quiz.lastResult")} {lastResult.score} из {lastResult.questionCount}</p>}
+    <Attempt training taskId={taskId} questions={mistakes.map(({ question }) => question)} onReturn={() => setShowTraining(false)} />
+  </>;
 
   return <>
     <p>{training ? name("quiz.training") : name("quiz.chat")} · {questions.length} вопросов</p>
     {training && <p>Тренировка не изменяет результат полной попытки.</p>}
     {lastResult && <p role="status">{name("quiz.lastResult")} {lastResult.score} из {lastResult.questionCount} · <time dateTime={lastResult.completedAt}>{new Date(lastResult.completedAt).toLocaleString("ru-RU")}</time></p>}
-    {saving && <p role="status">Сохраняем результат…</p>}
-    {storageIssue && !saving && <div role="status">
+    {resultLoad === "loading" && <p role="status">Загружаем прошлый результат…</p>}
+    {resultLoad === "error" && <div role="status"><p>Не удалось загрузить прошлый результат теста.</p>
+      <button type="button" className="button button-secondary" onClick={() => { setResultLoad("loading"); setLoadRequest((request) => request + 1); }}>Повторить загрузку</button>
+    </div>}
+    {cloud && syncStatus === "saving" && <p role="status">Сохраняем результат…</p>}
+    {cloud && finished && !training && syncStatus === "synced" && <p role="status">Результат синхронизирован.</p>}
+    {(cloud ? syncStatus === "save-error" : storageIssue) && <div role="status">
       <p>Не удалось сохранить результат. Итог текущей попытки показан ниже.</p>
-      {cloud && lastResult && <button type="button" className="button button-secondary" onClick={() => { void persistResult(lastResult); }}>Повторить</button>}
+      {cloud && <button type="button" className="button button-secondary" onClick={retryQuizResultSync}>Повторить сохранение</button>}
     </div>}
     <div className={styles.chat} role="log" aria-label={name("quiz.dialog")} aria-live="polite">
       <div className={styles.message}>Выбирай один ответ. После ответа разберём результат.</div>
@@ -157,6 +166,7 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
         : answered ? <button className="button button-primary" onClick={() => setCurrent(current + 1)}>{name("quiz.next")}</button>
         : <fieldset className={styles.options}><legend>{name("quiz.choose")} {current + 1}</legend>
           {questions[current].options.map((option, index) => <button key={index} className={styles.option}
+            disabled={cloud && !training && resultLoad === "loading"}
             onClick={() => answerQuestion(index)}>
             <span>{index + 1}.</span> {option}
           </button>)}

@@ -2,11 +2,13 @@
 import { useSiteNames } from "@/app/lib/site-names/store";
 import { useState } from "react";
 import { Download, NotebookPen } from "lucide-react";
-import { useStudy, updateStudy } from "@/app/lib/sql/store";
+import { useStudy, updateStudy, useStudySyncStatus } from "@/app/lib/sql/store";
 import { PageHeading, downloadText } from "@/app/components/sql/ui";
 export default function NotesPage() {
   const name = useSiteNames();
   const state = useStudy();
+  const syncStatus = useStudySyncStatus();
+  const unavailable = syncStatus === "loading" || syncStatus === "load-error";
   const [notice, setNotice] = useState("");
   return (
     <div className="page">
@@ -42,14 +44,18 @@ export default function NotesPage() {
         <div>
           <NotebookPen size={17} />
           <strong>{name("notes.editor")}</strong>
-          <span>
+          <span role="status">
             {state.storageIssue
               ? name("notes.temporary")
-              : name("notes.autoSave")}
+              : syncStatus === "saving" ? "Синхронизация…"
+                : syncStatus === "synced" ? "Сохранено в облаке"
+                  : syncStatus === "loading" ? "Загрузка заметок…"
+                    : name("notes.autoSave")}
           </span>
         </div>
         <textarea
           aria-label={name("notes.input")}
+          disabled={unavailable}
           maxLength={50000}
           value={state.notes}
           onChange={(event) =>
