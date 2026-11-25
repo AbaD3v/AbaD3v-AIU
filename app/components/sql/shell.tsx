@@ -330,7 +330,7 @@ function LearningShell({ children, pathname }: { children: ReactNode; pathname: 
         {quizSyncStatus === "save-error" && (
           <div className="storage-warning" role="status">
             Результат теста ещё не синхронизирован.{" "}
-            <button type="button" className="button button-secondary" onClick={retryQuizResultSync}>Повторить сохранение теста</button>
+            <button type="button" className="button button-secondary" onClick={() => retryQuizResultSync()}>Повторить сохранение теста</button>
           </div>
         )}
         <main id="main-content" tabIndex={-1}>

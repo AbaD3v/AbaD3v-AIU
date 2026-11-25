@@ -51,7 +51,7 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
   const name = useSiteNames();
   const scope = getStudyScope();
   const cloud = isCloudQuiz();
-  const syncStatus = useQuizSyncStatus();
+  const syncStatus = useQuizSyncStatus(taskId);
   const [lastResult, setLastResult] = useState(() => training ? null : cloud ? readPendingQuizResult(taskId, scope) : readQuizResult(taskId, scope));
   const [showTraining, setShowTraining] = useState(false);
   const [storageIssue, setStorageIssue] = useState(false);
@@ -118,7 +118,7 @@ function Attempt({ taskId, questions, training = false, onReturn }: AttemptProps
     {cloud && finished && !training && syncStatus === "synced" && <p role="status">Результат синхронизирован.</p>}
     {(cloud ? syncStatus === "save-error" : storageIssue) && <div role="status">
       <p>Не удалось сохранить результат. Итог текущей попытки показан ниже.</p>
-      {cloud && <button type="button" className="button button-secondary" onClick={retryQuizResultSync}>Повторить сохранение</button>}
+      {cloud && <button type="button" className="button button-secondary" onClick={() => retryQuizResultSync(taskId)}>Повторить сохранение</button>}
     </div>}
     <div className={styles.chat} role="log" aria-label={name("quiz.dialog")} aria-live="polite">
       <div className={styles.message}>Выбирай один ответ. После ответа разберём результат.</div>

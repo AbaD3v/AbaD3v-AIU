@@ -179,21 +179,26 @@ export async function saveCloudQuizResult(taskId: string, result: QuizResult, sc
   return savePending(current);
 }
 
-function activePending() {
+function activePending(taskId?: string) {
+  if (taskId !== undefined && !getTask(taskId)) return [];
   const scope = getStudyScope();
   restorePending(scope);
-  return isCloudQuiz() ? [...pending.values()].filter((item) => item.scope === scope) : [];
+  return isCloudQuiz() ? [...pending.values()].filter((item) =>
+    item.scope === scope && (taskId === undefined || item.taskId === taskId)) : [];
 }
 
-export async function flushQuizResults() {
+export async function flushQuizResults(taskId?: string) {
+  if (taskId !== undefined && !getTask(taskId)) return;
   restorePending(getStudyScope(), true);
-  await Promise.all(activePending().map(savePending));
-  if (activePending().length) throw new Error("Результат теста ещё не синхронизирован. Повторите сохранение перед выходом.");
+  await Promise.all(activePending(taskId).map(savePending));
+  if (activePending(taskId).length) throw new Error("Результат теста ещё не синхронизирован. Повторите сохранение перед выходом.");
 }
 
-export function retryQuizResultSync() {
-  void flushQuizResults().catch(() => {});
+export function retryQuizResultSync(taskId?: string) {
+  void flushQuizResults(taskId).catch(() => {});
 }
+
+const retryAllQuizResults = () => retryQuizResultSync();
 
 function onStorage(event: StorageEvent) {
   if (event.key === null || tasks.some((task) => event.key === pendingKey(task.id, getStudyScope()))) {
@@ -212,30 +217,30 @@ function beforeUnload(event: BeforeUnloadEvent) {
 export function subscribeQuizResults(listener: () => void) {
   if (!listeners.size) {
     unsubscribeAccounts = subscribeAccounts(() => { retryQuizResultSync(); emit(); });
-    window.addEventListener("online", retryQuizResultSync);
+    window.addEventListener("online", retryAllQuizResults);
     window.addEventListener("storage", onStorage);
     window.addEventListener("beforeunload", beforeUnload);
-    queueMicrotask(retryQuizResultSync);
+    queueMicrotask(retryAllQuizResults);
   }
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
     if (!listeners.size) {
       unsubscribeAccounts?.();
-      window.removeEventListener("online", retryQuizResultSync);
+      window.removeEventListener("online", retryAllQuizResults);
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("beforeunload", beforeUnload);
     }
   };
 }
 
-export function getQuizSyncStatus() {
+export function getQuizSyncStatus(taskId?: string) {
   if (!isCloudQuiz()) return "local";
-  const entries = activePending();
+  const entries = activePending(taskId);
   if (entries.some((item) => item.error && !item.saving)) return "save-error";
   return entries.length ? "saving" : "synced";
 }
 
-export function useQuizSyncStatus() {
-  return useSyncExternalStore(subscribeQuizResults, getQuizSyncStatus, () => "local");
+export function useQuizSyncStatus(taskId?: string) {
+  return useSyncExternalStore(subscribeQuizResults, () => getQuizSyncStatus(taskId), () => "local");
 }

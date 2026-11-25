@@ -188,6 +188,42 @@ test("cloud quiz results retry durably, serialize completions and isolate accoun
     assert.ok(Date.parse(afterFutureServer.completedAt) > Date.parse(onReentry.completedAt), "a new full attempt follows the observed server result even when this device's clock is behind");
     assert.equal(await saveCloudQuizResult(taskId, afterFutureServer, scope), true);
     assert.deepEqual(await readCloudQuizResult(taskId, scope), afterFutureServer);
+
+    const secondTaskId = "premium-products";
+    const secondQuestions = getQuizQuestions(secondTaskId);
+    const secondResult = completeQuiz(secondTaskId, secondQuestions,
+      secondQuestions.map((question) => question.correctIndex), scope).result;
+    const firstPending = { ...afterFutureServer, completedAt: new Date(Date.parse(afterFutureServer.completedAt) + 1).toISOString() };
+    let releaseScopedWrite!: () => void;
+    holdWrite = new Promise<void>((resolve) => { releaseScopedWrite = resolve; });
+    writeError = true;
+    const firstSaving = saveCloudQuizResult(taskId, firstPending, scope);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(getQuizSyncStatus(taskId), "saving");
+    assert.equal(getQuizSyncStatus(secondTaskId), "synced", "another task's save must not block loading the current result");
+    releaseScopedWrite();
+    holdWrite = undefined;
+    assert.equal(await firstSaving, false);
+    assert.equal(getQuizSyncStatus(taskId), "save-error");
+    assert.equal(getQuizSyncStatus(secondTaskId), "synced", "another task's failure must not appear as the current test's error");
+    assert.equal(getQuizSyncStatus(), "save-error", "the shell still reports pending results across all tasks");
+    assert.equal(await saveCloudQuizResult(secondTaskId, secondResult, scope), false);
+    writeError = false;
+    const beforeScopedRetry = writes;
+    retryQuizResultSync("not-a-task");
+    retryQuizResultSync("");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(writes, beforeScopedRetry, "invalid task filters never fall back to retrying every task");
+    retryQuizResultSync(secondTaskId);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(writes, beforeScopedRetry + 1, "the current test's retry writes only its own result");
+    assert.deepEqual(await readCloudQuizResult(secondTaskId, scope), secondResult);
+    assert.equal(getQuizSyncStatus(secondTaskId), "synced");
+    assert.equal(getQuizSyncStatus(taskId), "save-error");
+    assert.equal(getQuizSyncStatus(), "save-error");
+    assert.deepEqual(readPendingQuizResult(taskId, scope), firstPending);
+    await flushQuizResults();
+    assert.equal(getQuizSyncStatus(), "synced", "global flush still saves all tasks before sign-out");
   } finally {
     unsubscribe?.();
     client.auth.stopAutoRefresh();
