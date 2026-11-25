@@ -302,6 +302,8 @@ export const staticNames = {
   "admin.trainingDatabase": "Учебная база",
   "admin.trainingDatabaseIntro": "Меняйте таблицы, столбцы и содержимое базы для SQL-заданий.",
   "admin.siteTextsIntro": "Меняйте названия разделов, заданий и подписи в интерфейсе.",
+  "admin.reference": "Справочник SQL",
+  "admin.referenceIntro": "Редактируйте заголовки, теги, объяснения и SQL-примеры карточек справочника.",
   "admin.loadingStudents": "Загружаем список студентов…",
   "admin.studentsLoadError": "Не удалось обновить список студентов.",
   "admin.retryStudents": "Загрузить снова",
@@ -409,6 +411,10 @@ const staticGroups = {
   notFound: "Страница 404",
 };
 
+export const MAX_NAME_LENGTH = 2000;
+export const referenceCardFields = ["title", "tags", "theory", "example"] as const;
+export type ReferenceCardField = typeof referenceCardFields[number];
+
 export type NameKey =
   | keyof typeof staticNames
   | `module.${number}`
@@ -416,8 +422,13 @@ export type NameKey =
   | `module.subtitle.${number}`
   | `module.description.${number}`
   | `task.${string}`
+  | `reference.card.${string}.${ReferenceCardField}`
   | `quiz.title.${string}`
   | `table.${string}`;
+
+export function referenceCardKey(taskId: string, field: ReferenceCardField): NameKey {
+  return `reference.card.${taskId}.${field}`;
+}
 
 export type NameValues = Partial<Record<NameKey, string>>;
 export type NameChanges = Partial<Record<NameKey, string | null>>;
@@ -465,17 +476,25 @@ export const nameGroups: NameGroup[] = [
   },
 ];
 
-// Long-form lesson material has its own editor but uses the same published values.
+// Lesson materials and reference cards have dedicated editors and share the publication store.
 const allNameFields: NameField[] = [
   ...nameGroups.flatMap(({ fields }) => fields),
   ...catalogModuleFields,
   ...lessonContentGroups.flatMap(({ fields }) => fields),
+  ...tasks.flatMap((task) => referenceCardFields.map((field) => ({
+    key: referenceCardKey(task.id, field),
+    original: field === "tags" ? task.tags.join(" / ") : task[field],
+  }))),
 ];
 export const nameDefaults = new Map(allNameFields.map(({ key, original }) => [key, original]));
 
 export function resolveName(key: NameKey, values: NameValues) {
   const original = nameDefaults.get(key) ?? "";
   if (values[key] !== undefined) return values[key];
+  if (key.startsWith("reference.card.") && key.endsWith(".title")) {
+    const taskId = key.slice("reference.card.".length, -".title".length);
+    return values[`task.${taskId}`] ?? original;
+  }
   if (key.startsWith("quiz.title.")) return values[`task.${key.slice("quiz.title.".length)}`] ?? original;
   if (key.startsWith("module.short.")) {
     return values[`module.${Number(key.slice("module.short.".length))}`] ?? original;

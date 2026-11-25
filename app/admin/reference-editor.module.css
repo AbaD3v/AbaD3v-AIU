@@ -1,0 +1,73 @@
+.editor,
+.form,
+.fields,
+.field,
+.preview {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field {
+  gap: 6px;
+  font-weight: 600;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.field textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.field .sql {
+  font-family: monospace;
+}
+
+.field small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.field [aria-invalid="true"] {
+  border-color: #9b362a;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.editor button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.preview {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.preview p {
+  white-space: pre-wrap;
+}
