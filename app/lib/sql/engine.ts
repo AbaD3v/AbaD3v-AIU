@@ -1,6 +1,13 @@
 import type { Database, SqlJsStatic } from "sql.js";
-import { createShopData, schemaSql, tables, type Cell } from "./schema";
-import { getTask } from "./course";
+import { schemaSql, tables, type Cell } from "./schema";
+import { getTask, tasks } from "./course";
+import {
+  databaseIdentifier,
+  defaultTrainingDatabase,
+  trainingRows,
+  trainingSql,
+  type TrainingDatabase,
+} from "./training-database";
 
 export type QueryResult = {
   columns: string[];
@@ -17,27 +24,58 @@ export type GradeResult = {
 export const MAX_ROWS = 1000;
 export const MAX_QUERY_LENGTH = 20000;
 
-export function buildDatabase(SQL: SqlJsStatic, variant = 0): Database {
+export function buildDatabase(
+  SQL: SqlJsStatic,
+  variant = 0,
+  config = defaultTrainingDatabase,
+): Database {
   const db = new SQL.Database();
-  db.run("PRAGMA foreign_keys = ON;");
-  db.run(schemaSql);
-  const data = createShopData(variant);
-  for (const table of tables) {
-    const statement = db.prepare(
-      "INSERT INTO " +
-        table.name +
-        " VALUES (" +
-        table.fields.map(() => "?").join(",") +
-        ");",
-    );
+  try {
+    db.run("PRAGMA foreign_keys = ON;");
+    db.run(trainingSql(schemaSql, config));
+    const data = trainingRows(config, variant);
+    for (const table of tables) {
+      const statement = db.prepare(
+        `INSERT INTO "${databaseIdentifier(config, table.name)}" VALUES (${table.fields.map(() => "?").join(",")})`,
+      );
+      try {
+        for (const row of data[table.name]) statement.run(row);
+      } catch (error) {
+        throw new Error(`${databaseIdentifier(config, table.name)}: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        statement.free();
+      }
+    }
+    db.run("PRAGMA query_only = ON;");
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+}
+
+export function validateTrainingDatabase(SQL: SqlJsStatic, config: TrainingDatabase) {
+  for (let variant = 0; variant < 3; variant++) {
+    const db = buildDatabase(SQL, variant, config);
     try {
-      for (const row of data[table.name]) statement.run(row);
+      const original = buildDatabase(SQL, variant, { names: {}, rows: config.rows });
+      try {
+        for (const task of tasks) {
+          for (const sql of [task.solution, task.example]) {
+            const expected = executeQuery(original, sql);
+            const actual = executeQuery(db, trainingSql(sql, config));
+            if (!compareResults(actual, expected, task.ordered).passed) {
+              throw new Error(`Проверьте имена в задании «${task.title}».`);
+            }
+          }
+        }
+      } finally {
+        original.close();
+      }
     } finally {
-      statement.free();
+      db.close();
     }
   }
-  db.run("PRAGMA query_only = ON;");
-  return db;
 }
 
 function leadingSql(sql: string): string {
@@ -157,6 +195,7 @@ export function gradeQuery(
   SQL: SqlJsStatic,
   taskId: string,
   sql: string,
+  config = defaultTrainingDatabase,
 ): GradeResult {
   const task = getTask(taskId);
   if (!task) throw new Error("Задание не найдено.");
@@ -164,10 +203,10 @@ export function gradeQuery(
   let result: QueryResult | undefined;
   const labels = ["Учебная база", "Другие данные", "Граничные случаи"];
   for (let variant = 0; variant < 3; variant++) {
-    const db = buildDatabase(SQL, variant);
+    const db = buildDatabase(SQL, variant, config);
     try {
       const actual = executeQuery(db, sql);
-      const expected = executeQuery(db, task.solution);
+      const expected = executeQuery(db, trainingSql(task.solution, config));
       if (variant === 0) result = actual;
       const comparison = compareResults(actual, expected, task.ordered);
       checks.push({

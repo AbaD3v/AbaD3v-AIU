@@ -291,6 +291,8 @@ export const staticNames = {
   "admin.quizzes": "Тесты",
   "admin.quizzesIntro": "Редактируйте вопросы и проверяйте, как их увидит студент.",
   "admin.siteTexts": "Тексты сайта",
+  "admin.trainingDatabase": "Учебная база",
+  "admin.trainingDatabaseIntro": "Меняйте таблицы, столбцы и содержимое базы для SQL-заданий.",
   "admin.siteTextsIntro": "Меняйте названия разделов, заданий и подписи в интерфейсе.",
   "admin.loadingStudents": "Загружаем список студентов…",
   "admin.studentsLoadError": "Не удалось обновить список студентов.",

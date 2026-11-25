@@ -31,7 +31,8 @@ import {
   Zap,
 } from "lucide-react";
 import { tasks, getTask, taskHref } from "@/app/lib/sql/course";
-import { tables } from "@/app/lib/sql/schema";
+import { trainingTables, trainingTask } from "@/app/lib/sql/training-database";
+import { reloadTrainingDatabase, useTrainingDatabase } from "@/app/lib/sql/training-database-store";
 import { SqlClient } from "@/app/lib/sql/client";
 import type { QueryResult, GradeResult } from "@/app/lib/sql/engine";
 import {
@@ -63,11 +64,19 @@ const Editor = dynamic(() => import("./editor"), {
 export default function Workspace({ taskId }: { taskId: string }) {
   const name = useSiteNames();
   const quizQuestions = useQuizQuestions(taskId);
-  const task = getTask(taskId)!;
+  const { config, status: databaseStatus } = useTrainingDatabase();
+  const originalTask = getTask(taskId)!;
+  const task = useMemo(() => trainingTask(originalTask, config), [originalTask, config]);
+  const tables = useMemo(() => trainingTables(config), [config]);
+  const sqlSchema = useMemo(() => Object.fromEntries(
+    tables.map(table => [table.name, table.fields.map(field => field.name)]),
+  ), [tables]);
   const index = tasks.findIndex((item) => item.id === taskId);
   const state = useStudy();
   const progress = state.progress[taskId] ?? emptyProgress;
-  const code = state.drafts[taskId] ?? task.starter;
+  const storedDraft = state.drafts[taskId];
+  const code = storedDraft === undefined || storedDraft === originalTask.starter
+    ? task.starter : storedDraft;
   const [leftTab, setLeftTab] = useState<"task" | "hints" | "theory">("task");
   const [bottomTab, setBottomTab] = useState<"result" | "check" | "history">(
     "result",
@@ -123,7 +132,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
     }
   };
   const execute = async (action: "run" | "check") => {
-    if (busyRef.current || !ready || !code.trim()) return;
+    if (busyRef.current || !ready || databaseStatus !== "ready" || !code.trim()) return;
     const currentRequest = ++requestId.current;
     const scope = getStudyScope();
     busyRef.current = true;
@@ -135,8 +144,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
     try {
       const response =
         action === "check"
-          ? await client.grade(taskId, code)
-          : await client.run(code);
+          ? await client.grade(taskId, code, config)
+          : await client.run(code, config);
       if (
         !alive.current ||
         currentRequest !== requestId.current ||
@@ -525,6 +534,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
               </div>
             </div>
             <Editor
+              schema={sqlSchema}
               value={code}
               onChange={(value) => {
                 if (value.length > 20000)
@@ -550,7 +560,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 )}
                 <button
                   className="button button-run"
-                  disabled={!!busy || !ready || !code.trim()}
+                  disabled={!!busy || !ready || databaseStatus !== "ready" || !code.trim()}
                   onClick={onRun}
                 >
                   {busy === "run" ? (
@@ -562,7 +572,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 </button>
                 <button
                   className="button button-lime"
-                  disabled={!!busy || !ready || !code.trim()}
+                  disabled={!!busy || !ready || databaseStatus !== "ready" || !code.trim()}
                   onClick={onCheck}
                 >
                   {busy === "check" ? (
@@ -579,6 +589,15 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <p className="notice-banner" role="status">
               {notice}
             </p>
+          )}
+          {databaseStatus === "loading" && <p role="status">Загружаем учебную базу…</p>}
+          {databaseStatus === "error" && (
+            <div className="notice-banner" role="status">
+              Не удалось загрузить учебную базу.{" "}
+              <button className="button button-secondary" type="button" onClick={reloadTrainingDatabase}>
+                Повторить
+              </button>
+            </div>
           )}
           {loadError && (
             <div className="error-banner" role="alert">
