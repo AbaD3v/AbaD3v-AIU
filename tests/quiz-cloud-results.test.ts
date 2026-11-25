@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
 
-test("cloud quiz results retry durably, serialize completions and isolate accounts", async () => {
+test("cloud quiz results retry durably, serialize completions and isolate accounts", async (context) => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://quiz-test.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "public-test-key";
   const records = new Map<string, string>();
@@ -29,6 +29,7 @@ test("cloud quiz results retry durably, serialize completions and isolate accoun
   let responseLost = false;
   let readError = false;
   let holdWrite: Promise<void> | undefined;
+  let holdRead: Promise<void> | undefined;
   let writes = 0;
   let unsubscribe: (() => void) | undefined;
   client.auth.getSession = (async () => ({ data: { session: userId ? { user: { id: userId, email: "student@example.com" } } : null }, error: null })) as typeof client.auth.getSession;
@@ -36,21 +37,26 @@ test("cloud quiz results retry durably, serialize completions and isolate accoun
     const filters = new Map<string, unknown>();
     let payload: Partial<Row> | undefined;
     let insert = false;
+    let requestSignal: AbortSignal | undefined;
     const query = {
       select() { return query; },
       eq(key: string, value: unknown) { filters.set(key, value); return query; },
       update(value: Partial<Row>) { payload = value; return query; },
       upsert(value: Row) { payload = value; insert = true; return query; },
+      abortSignal(signal: AbortSignal) { requestSignal = signal; return query; },
       single: async () => ({ data: { id: userId, name: "Student", role: "student", blocked: false }, error: null }),
       maybeSingle: async () => {
         assert.equal(table, "codeproof_quiz_results");
         const id = `${payload?.user_id ?? filters.get("user_id")}:${payload?.task_id ?? filters.get("task_id")}`;
         if (!payload) {
+          await holdRead;
+          if (requestSignal?.aborted) return { data: null, error: new Error("aborted") };
           if (readError) return { data: null, error: new Error("offline") };
           return { data: remote.get(id) ?? null, error: null };
         }
         writes++;
         await holdWrite;
+        if (requestSignal?.aborted) return { data: null, error: new Error("aborted") };
         if (writeError) return { data: null, error: new Error("offline") };
         const previous = remote.get(id);
         if (insert ? previous : previous?.completed_at !== filters.get("completed_at")) return { data: null, error: null };
@@ -224,6 +230,33 @@ test("cloud quiz results retry durably, serialize completions and isolate accoun
     assert.deepEqual(readPendingQuizResult(taskId, scope), firstPending);
     await flushQuizResults();
     assert.equal(getQuizSyncStatus(), "synced", "global flush still saves all tasks before sign-out");
+
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    holdRead = new Promise<void>(() => {});
+    const stalledRead = assert.rejects(readCloudQuizResult(taskId, scope), /не ответил за 15 секунд/);
+    await new Promise((resolve) => setImmediate(resolve));
+    context.mock.timers.tick(15_000);
+    await stalledRead;
+    holdRead = undefined;
+    assert.deepEqual(await readCloudQuizResult(taskId, scope), firstPending, "loading can retry after a stalled request");
+
+    let releaseTimedOutWrite!: () => void;
+    holdWrite = new Promise<void>((resolve) => { releaseTimedOutWrite = resolve; });
+    const timedOutResult = completeQuiz(taskId, questions, answers, scope).result;
+    const stalledSave = saveCloudQuizResult(taskId, timedOutResult, scope);
+    await new Promise((resolve) => setImmediate(resolve));
+    context.mock.timers.tick(15_000);
+    assert.equal(await stalledSave, false);
+    assert.equal(getQuizSyncStatus(taskId), "save-error");
+    assert.deepEqual(readPendingQuizResult(taskId, scope), timedOutResult, "a timeout retains the completed attempt for retry");
+    holdWrite = undefined;
+    await flushQuizResults(taskId);
+    assert.equal(getQuizSyncStatus(taskId), "synced");
+    assert.deepEqual(await readCloudQuizResult(taskId, scope), timedOutResult);
+    releaseTimedOutWrite();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(getQuizSyncStatus(taskId), "synced", "a late aborted response cannot restore a stale error");
+    context.mock.timers.reset();
   } finally {
     unsubscribe?.();
     client.auth.stopAutoRefresh();

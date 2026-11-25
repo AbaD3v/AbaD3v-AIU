@@ -6,6 +6,7 @@ import type { QuizQuestion } from "../lib/sql/quiz";
 import { getStudyScope } from "../lib/sql/store";
 import { getAccounts, subscribeAccounts } from "../lib/accounts/store";
 import { cloudEnabled, getSupabase } from "../lib/supabase/client";
+import { requestQuizData } from "./request";
 
 export type QuizResult = { score: number; questionCount: number; completedAt: string };
 const completionTimes = new Map<string, number>();
@@ -68,8 +69,9 @@ export function isCloudQuiz() {
 export async function readCloudQuizResult(taskId: string, scope: string): Promise<QuizResult | null> {
   const user = getAccounts().active;
   if (!cloudEnabled || !user || scope !== getStudyScope() || !getTask(taskId)) return null;
-  const { data, error } = await getSupabase().from("codeproof_quiz_results")
-    .select("score, question_count, completed_at").eq("user_id", user.id).eq("task_id", taskId).maybeSingle();
+  const { data, error } = await requestQuizData((signal) => getSupabase().from("codeproof_quiz_results")
+    .select("score, question_count, completed_at").eq("user_id", user.id).eq("task_id", taskId)
+    .abortSignal(signal).maybeSingle());
   if (error) throw new Error("Не удалось загрузить прошлый результат теста.");
   if (!data || scope !== getStudyScope()) return null;
   const result = parseResult({ score: data.score, questionCount: data.question_count, completedAt: data.completed_at });
@@ -126,7 +128,7 @@ async function writeResult(current: PendingResult, result: QuizResult, userId: s
     const write = latest
       ? table.update(payload).eq("user_id", userId).eq("task_id", current.taskId).eq("completed_at", latest.completedAt)
       : table.upsert({ ...payload, user_id: userId, task_id: current.taskId }, { onConflict: "user_id,task_id", ignoreDuplicates: true });
-    const { data, error } = await write.select("completed_at").maybeSingle();
+    const { data, error } = await requestQuizData((signal) => write.select("completed_at").abortSignal(signal).maybeSingle());
     if (error) throw error;
     if (current.scope !== getStudyScope()) return false;
     if (data) return true;
