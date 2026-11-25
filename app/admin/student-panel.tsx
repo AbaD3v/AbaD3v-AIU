@@ -32,25 +32,28 @@ export default function StudentPanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [, refreshProgress] = useState(0);
-  const [progressError, setProgressError] = useState("");
+  const [progressStatus, setProgressStatus] = useState<"loading" | "ready" | "error">(
+    cloudEnabled ? "loading" : "ready",
+  );
+  const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (cloudEnabled) {
-      let mounted = true;
-      const refresh = () => {
-        void refreshAdminStudies().then(() => {
-          if (mounted) {
-            setProgressError("");
-            refreshProgress((version) => version + 1);
-          }
-        }).catch(() => {
-          if (mounted) setProgressError("Не удалось загрузить прогресс студентов. Обновите страницу.");
-        });
+      let latest = 0;
+      const refresh = async () => {
+        const request = ++latest;
+        setProgressStatus("loading");
+        try {
+          await refreshAdminStudies();
+          if (latest === request) setProgressStatus("ready");
+        } catch {
+          if (latest === request) setProgressStatus("error");
+        }
       };
-      refresh();
+      void refresh();
       window.addEventListener("focus", refresh);
       return () => {
-        mounted = false;
+        latest++;
         window.removeEventListener("focus", refresh);
         clearAdminStudies();
       };
@@ -61,7 +64,7 @@ export default function StudentPanel({
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [adminId]);
+  }, [adminId, reload]);
 
   const query = search.trim().toLocaleLowerCase("ru");
   const rows = students.filter((student) =>
@@ -69,6 +72,9 @@ export default function StudentPanel({
     `${student.name} ${student.login}`.toLocaleLowerCase("ru").includes(query),
   );
   const selectedStudent = students.find((student) => student.id === progressId);
+  const accessTarget = students.find((student) => student.id === target?.id);
+  const progressPlaceholder = progressStatus === "loading" ? "Загрузка…" : "Данные недоступны";
+  const retryProgress = () => setReload((version) => version + 1);
 
   async function toggleAccess(student: Account) {
     if (busy) return;
@@ -127,7 +133,14 @@ export default function StudentPanel({
             {notice}
           </p>
         )}
-        {progressError && <p className="account-error" role="alert">{progressError}</p>}
+        {progressStatus === "error" && (
+          <div className={styles.listNotice} role="alert">
+            Не удалось загрузить прогресс студентов.
+            <button className="button button-secondary" onClick={retryProgress}>
+              {name("admin.retryStudents")}
+            </button>
+          </div>
+        )}
         {rows.length ? (
           <div
             className={`data-scroll admin-table-wrap ${styles.studentTable}`}
@@ -147,7 +160,7 @@ export default function StudentPanel({
               </thead>
               <tbody>
                 {rows.map((student) => {
-                  const study = readStudentStudy(student.id);
+                  const study = progressStatus === "ready" ? readStudentStudy(student.id) : null;
                   const stats = study && getStats(study);
                   return (
                     <tr key={student.id}>
@@ -158,9 +171,9 @@ export default function StudentPanel({
                       <td>
                         {stats
                           ? `${stats.completed} из ${tasks.length}`
-                          : "Недоступно"}
+                          : progressPlaceholder}
                       </td>
-                      <td>{stats?.independent ?? "Недоступно"}</td>
+                      <td>{stats?.independent ?? progressPlaceholder}</td>
                       <td>
                         <span
                           className={
@@ -211,12 +224,13 @@ export default function StudentPanel({
         )}
       </section>
       {selectedStudent && (
-        <StudentProgress student={selectedStudent} onClose={() => setProgressId(null)} />
+        <StudentProgress student={selectedStudent} status={progressStatus}
+          retry={retryProgress} onClose={() => setProgressId(null)} />
       )}
-      {target && (
+      {target && accessTarget && target.blocked === accessTarget.blocked && (
         <Modal
           title={target.blocked ? name("admin.restoreAccessTitle") : name("admin.suspendAccessTitle")}
-          onClose={() => setTarget(null)}
+          onClose={() => { if (!busy) setTarget(null); }}
         >
           <p>
             {target.blocked
@@ -232,6 +246,7 @@ export default function StudentPanel({
           <div className="modal-actions">
             <button
               className="button button-secondary"
+              disabled={busy}
               onClick={() => setTarget(null)}
             >
               {name("common.cancel")}

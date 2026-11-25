@@ -6,12 +6,14 @@ import { getStats, isTaskStarted } from "@/app/lib/sql/progress";
 import { readStudentStudy } from "@/app/lib/sql/store";
 import styles from "./student-progress.module.css";
 
-export default function StudentProgress({ student, onClose }: {
+export default function StudentProgress({ student, status, retry, onClose }: {
   student: Account;
+  status: "loading" | "ready" | "error";
+  retry: () => void;
   onClose: () => void;
 }) {
   const name = useSiteNames();
-  const study = readStudentStudy(student.id);
+  const study = status === "ready" ? readStudentStudy(student.id) : null;
   const stats = study && getStats(study);
 
   return (
@@ -40,7 +42,16 @@ export default function StudentProgress({ student, onClose }: {
             );
           })}
         </>
-      ) : <p role="status">Данные недоступны</p>}
+      ) : (
+        <>
+          <p role="status">{status === "loading" ? "Загружаем прогресс…" : "Данные недоступны"}</p>
+          {status === "error" && (
+            <button className="button button-secondary" onClick={retry}>
+              {name("admin.retryStudents")}
+            </button>
+          )}
+        </>
+      )}
     </Modal>
   );
 }
