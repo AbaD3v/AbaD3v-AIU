@@ -4,6 +4,8 @@
 
 Сайт собирается в статические страницы. Учебные запросы выполняются локально через SQLite. Supabase Auth и PostgreSQL обеспечивают общий вход, прогресс и настройки сайта.
 
+[Қазақша: оқытушыға жұмысты таныстыру мәтіні](docs/teacher-presentation.kk.md)
+
 ![Каталог CodeProof SQL](docs/codeproof-sql-preview.png)
 
 ## Быстрый старт
