@@ -272,7 +272,7 @@ export default function AccountPage() {
     setNotice("");
     try {
       await resendCloudConfirmation(email);
-      setNotice("Проверьте почту и папку «Спам». Подтвердить адрес можно по новой ссылке.");
+      setNotice("Если адрес ещё не подтверждён, проверьте почту и папку «Спам».");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось отправить ссылку.");
     } finally {
@@ -377,6 +377,18 @@ export default function AccountPage() {
       setBusy(false);
     }
   }
+
+  const googleButton = googleAvailable && (
+    <button
+      className={googleStyles.button}
+      type="button"
+      disabled={busy || !!accounts.error}
+      onClick={() => { void signInWithGoogle(); }}
+    >
+      <Image src="/google-g.png" width={18} height={18} alt="" unoptimized />
+      <span>Войти через Google</span>
+    </button>
+  );
 
   return (
     <div className="page account-page">
@@ -493,8 +505,14 @@ export default function AccountPage() {
         </section>
       ) : pendingEmail ? (
         <section className="account-card account-signed-in" aria-labelledby="check-email-title">
-          <h2 id="check-email-title">Проверьте почту</h2>
-          <p>Откройте ссылку подтверждения из письма на <strong style={{ overflowWrap: "anywhere" }}>{pendingEmail}</strong>.</p>
+          <h2 id="check-email-title">Завершите регистрацию</h2>
+          <p>Если вы впервые регистрируетесь на <strong style={{ overflowWrap: "anywhere" }}>{pendingEmail}</strong>, откройте письмо со ссылкой подтверждения. Проверьте также папку «Спам».</p>
+          <p>
+            {googleAvailable
+              ? "Уже входили через Google с этой почтой? Аккаунт уже есть. Войдите через Google снова, письмо для этого не требуется."
+              : "Если у вас уже есть аккаунт с этой почтой, перейдите ко входу."}
+          </p>
+          {googleButton && <div className={googleStyles.option}>{googleButton}</div>}
           <div className="account-actions">
             <button
               type="button"
@@ -546,23 +564,9 @@ export default function AccountPage() {
           {requestingLink && <p className="account-help">Введите адрес, который указали при регистрации.</p>}
           {resetting && <p className="account-help">Аккаунт {accounts.active?.login}</p>}
           <form className="account-form" onSubmit={submit}>
-            {googleAvailable && !accounts.active && (mode === "login" || mode === "register") && (
+            {googleButton && !accounts.active && (mode === "login" || mode === "register") && (
               <div className={googleStyles.option}>
-                <button
-                  className={googleStyles.button}
-                  type="button"
-                  disabled={busy || !!accounts.error}
-                  onClick={() => { void signInWithGoogle(); }}
-                >
-                  <Image
-                    src="/google-g.png"
-                    width={18}
-                    height={18}
-                    alt=""
-                    unoptimized
-                  />
-                  <span>Войти через Google</span>
-                </button>
+                {googleButton}
                 <span className={googleStyles.divider} aria-hidden="true">или по почте</span>
               </div>
             )}
