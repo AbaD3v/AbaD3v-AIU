@@ -4,14 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  AlertCircle,
   ArrowUpRight,
   BookOpen,
   ChartNoAxesCombined,
   Check,
   ChevronRight,
   Database,
+  Download,
   History,
   Layers3,
+  LoaderCircle,
   Menu,
   NotebookPen,
   ShieldCheck,
@@ -22,12 +25,14 @@ import {
 } from "lucide-react";
 import { SiteDocumentTitle } from "./site-name";
 import { brandName, type NameKey } from "@/app/lib/site-names/registry";
-import { retryStudySync, useStudy, useStudySyncStatus } from "@/app/lib/sql/store";
-import { getStats } from "@/app/lib/sql/progress";
+import { reloadStudyFromCloud, retryStudySync, useStudy, useStudySyncStatus } from "@/app/lib/sql/store";
+import { getStats, serializeStudy, type StudyState } from "@/app/lib/sql/progress";
 import { tasks } from "@/app/lib/sql/course";
 import { useAccounts } from "@/app/lib/accounts/store";
 import { practiceAccountHref } from "@/app/lib/accounts/registration";
 import { cloudEnabled } from "@/app/lib/supabase/client";
+import { retryQuizResultSync, useQuizSyncStatus } from "@/app/quiz/results";
+import { downloadText, Modal } from "./ui";
 
 type NavItem = { href: string; nameKey: NameKey; icon: LucideIcon };
 
@@ -44,6 +49,59 @@ const tools: NavItem[] = [
 const adminLink: NavItem = { href: "/admin/", nameKey: "nav.admin", icon: ShieldCheck };
 const accountLink: NavItem = { href: "/account/", nameKey: "nav.account", icon: UserRound };
 
+function StudySyncWarning({ state, status }: { state: StudyState; status: ReturnType<typeof useStudySyncStatus> }) {
+  const [notice, setNotice] = useState("");
+  const [exportedState, setExportedState] = useState<StudyState | null>(null);
+  const [replaceOpen, setReplaceOpen] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  function exportChanges() {
+    try {
+      downloadText("codeproof-sql-progress.json", serializeStudy(state), "application/json");
+      setExportedState(state);
+      setNotice("Скачивание запрошено. Проверьте файл прогресса перед загрузкой облачной версии.");
+    } catch {
+      setExportedState(null);
+      setNotice("Не удалось скачать файл. Повторите скачивание перед заменой изменений.");
+    }
+  }
+  return (
+    <div className="storage-warning" role="status">
+      <p>{state.storageIssue}</p>
+      <button type="button" className="button button-secondary" onClick={exportChanges}>
+        <Download size={15} /> Скачать изменения
+      </button>{" "}
+      {(status === "load-error" || status === "save-error") && (
+        <button type="button" className="button button-secondary" onClick={retryStudySync}>Повторить</button>
+      )}
+      {status === "conflict" && (
+        <button type="button" className="button button-secondary" onClick={() => setReplaceOpen(true)}>Загрузить облачную версию</button>
+      )}
+      {notice && <p>{notice}</p>}
+      {replaceOpen && (
+        <Modal title="Загрузить облачную версию?" onClose={() => { if (!reloading) setReplaceOpen(false); }}>
+          <p>Черновики, история, заметки и прогресс этой вкладки будут заменены сохранением из облака. Сначала скачайте изменения и проверьте, что файл сохранён.</p>
+          {notice && <p role="status">{notice}</p>}
+          <div className="modal-actions">
+            <button type="button" className="button button-secondary" disabled={reloading} onClick={exportChanges}>Скачать изменения</button>
+            <button type="button" className="button button-secondary" disabled={reloading} onClick={() => setReplaceOpen(false)}>Отмена</button>
+            <button type="button" className="button button-danger" disabled={reloading || exportedState !== state} onClick={async () => {
+              setReloading(true);
+              try {
+                await reloadStudyFromCloud();
+                setReplaceOpen(false);
+              } catch {
+                setNotice("Не удалось загрузить облачную версию. Изменения этой вкладки сохранены, попробуйте ещё раз.");
+              } finally {
+                setReloading(false);
+              }
+            }}>{reloading ? "Загрузка…" : "Заменить изменения облачной версией"}</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 export default function SqlShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return children;
@@ -56,6 +114,17 @@ function LearningShell({ children, pathname }: { children: ReactNode; pathname: 
   const accountHref = active ? accountLink.href : practiceAccountHref(pathname);
   const state = useStudy();
   const syncStatus = useStudySyncStatus();
+  const quizSyncStatus = useQuizSyncStatus();
+  const syncing = syncStatus === "saving" || quizSyncStatus === "saving";
+  const syncFailed = Boolean(state.storageIssue) || quizSyncStatus === "save-error";
+  const syncLabel = cloudEnabled && !ready ? "Загрузка аккаунта…"
+    : syncStatus === "loading" ? "Загрузка прогресса…"
+      : syncStatus === "load-error" ? "Ошибка загрузки"
+        : syncStatus === "conflict" ? "Конфликт сохранений"
+          : syncFailed ? "Не синхронизировано"
+            : syncing ? "Синхронизация…"
+              : syncStatus === "synced" ? "Сохранено в облаке"
+                : name("nav.localProgress");
   const studyPage = pathname === "/" || /^\/(practice|profile|checklist|notes|history|quiz)(\/|$)/.test(pathname);
   const studyLoading = cloudEnabled && studyPage && (!ready || syncStatus === "loading");
   const studyUnavailable = studyPage && syncStatus === "load-error";
@@ -243,14 +312,11 @@ function LearningShell({ children, pathname }: { children: ReactNode; pathname: 
             <strong>{name(current?.nameKey ?? "nav.about")}</strong>
           </div>
           <div className="topbar-right">
-            <span className="local-save">
-              <Check size={14} />
-              {state.storageIssue
-                ? name("nav.storageUnavailable")
-                : syncStatus === "synced" ? name("nav.cloudProgress")
-                : syncStatus === "saving" ? "Синхронизация…"
-                  : syncStatus === "loading" ? "Загрузка…"
-                    : name("nav.localProgress")}
+            <span className="local-save" role="status">
+              {syncFailed ? <AlertCircle size={14} />
+                : syncing || syncStatus === "loading" || (cloudEnabled && !ready)
+                  ? <LoaderCircle size={14} /> : <Check size={14} />}
+              {syncLabel}
             </span>
             <Link href={accountHref} className="topbar-account">
               <UserRound size={15} />
@@ -259,12 +325,12 @@ function LearningShell({ children, pathname }: { children: ReactNode; pathname: 
           </div>
         </header>
         {state.storageIssue && (
+          <StudySyncWarning key={active?.id ?? "guest"} state={state} status={syncStatus} />
+        )}
+        {quizSyncStatus === "save-error" && (
           <div className="storage-warning" role="status">
-            {state.storageIssue}{" "}
-            {syncStatus !== "load-error" && <Link href="/profile/">{name("nav.progressWarning")}</Link>}
-            {(syncStatus === "load-error" || syncStatus === "save-error") && (
-              <button type="button" className="button button-secondary" onClick={retryStudySync}>Повторить</button>
-            )}
+            Результат теста ещё не синхронизирован.{" "}
+            <button type="button" className="button button-secondary" onClick={() => retryQuizResultSync()}>Повторить сохранение теста</button>
           </div>
         )}
         <main id="main-content" tabIndex={-1}>

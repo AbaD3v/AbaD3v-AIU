@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from "react";
 import { getAccounts, subscribeAccounts } from "../accounts/store";
 import { cloudEnabled, getSupabase } from "../supabase/client";
+import { flushQuizResults, retryQuizResultSync } from "../../quiz/results";
 import {
   emptyStudy,
   emptyProgress,
@@ -30,9 +31,52 @@ type CloudStudy = {
   write?: { revision: string; state: StudyState; change: number };
   timer?: ReturnType<typeof setTimeout>;
   saving?: Promise<void>;
+  loading?: Promise<void>;
 };
 let cloudStudy: CloudStudy | undefined;
 const failedSave = "Не удалось синхронизировать прогресс. Изменения открыты в этой вкладке.";
+const conflictMessage = "Сохранение изменилось на другом устройстве. Скачайте изменения этой вкладки, затем загрузите облачную версию.";
+
+// Each tab retains its own pending version, so concurrent tabs cannot overwrite
+// one another's recovery copy. No cloud data is copied into the guest profile.
+function recoveryKey(userId: string) {
+  return `${storageKey(userId)}.pending`;
+}
+
+function rememberPending(current: CloudStudy) {
+  try {
+    if (!current.pending) {
+      window.sessionStorage.removeItem(recoveryKey(current.userId));
+      return;
+    }
+    window.sessionStorage.setItem(recoveryKey(current.userId), JSON.stringify({
+      revision: current.revision, state, change: current.change, write: current.write,
+    }));
+  } catch {
+    // The unload guard and export still protect the in-memory copy.
+  }
+}
+
+function restorePending(current: CloudStudy) {
+  try {
+    const raw = window.sessionStorage.getItem(recoveryKey(current.userId));
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || (saved.revision !== null && typeof saved.revision !== "string") ||
+      !Number.isSafeInteger(saved.change) || saved.change < 1) return;
+    const restored = parseStudy(JSON.stringify(saved.state));
+    const write = saved.write;
+    if (write && (typeof write.revision !== "string" || !Number.isSafeInteger(write.change) ||
+      write.change < 1 || write.change > saved.change)) return;
+    current.write = write ? { ...write, state: parseStudy(JSON.stringify(write.state)) } : undefined;
+    current.revision = saved.revision;
+    current.change = saved.change;
+    current.pending = true;
+    state = restored;
+  } catch {
+    // An unreadable recovery copy must never replace a valid cloud save.
+  }
+}
 
 function beforeUnload(event: BeforeUnloadEvent) {
   if (cloudStudy?.pending) {
@@ -42,18 +86,37 @@ function beforeUnload(event: BeforeUnloadEvent) {
 }
 
 async function loadCloudStudy(current: CloudStudy) {
+  if (current.loading) return current.loading;
+  current.loading = fetchCloudStudy(current).finally(() => { current.loading = undefined; });
+  return current.loading;
+}
+
+async function fetchCloudStudy(current: CloudStudy) {
   try {
     const { data, error } = await getSupabase().from("codeproof_study")
       .select("state, revision").eq("user_id", current.userId).maybeSingle();
     if (error) throw error;
     if (current !== cloudStudy) return;
-    if (data) {
+    if (current.pending) {
+      const remoteRevision = data?.revision ?? null;
+      if (current.write && remoteRevision === current.write.revision) {
+        // A response may have been lost after the server committed the write.
+        current.revision = remoteRevision;
+        current.pending = current.change !== current.write.change;
+        current.write = undefined;
+      } else if (remoteRevision !== current.revision) {
+        current.conflict = true;
+      }
+      state = { ...state, storageIssue: current.conflict ? conflictMessage : null };
+      rememberPending(current);
+    } else if (data) {
       state = parseStudy(JSON.stringify(data.state));
       current.revision = data.revision;
     } else {
       state = { ...state, storageIssue: null };
     }
     current.ready = true;
+    if (current.pending && !current.conflict) void saveCloudStudy(current);
   } catch {
     if (current !== cloudStudy) return;
     state = { ...state, storageIssue: "Не удалось загрузить прогресс из Supabase." };
@@ -72,12 +135,13 @@ async function saveCloudStudy(current: CloudStudy) {
         state: { ...state, storageIssue: null },
         change: current.change,
       };
-      const table = getSupabase().from("codeproof_study");
-      const payload = { revision: writeAttempt.revision, state: writeAttempt.state };
-      const write = current.revision === null
-        ? table.upsert({ ...payload, user_id: current.userId }, { onConflict: "user_id", ignoreDuplicates: true })
-        : table.update(payload).eq("user_id", current.userId).eq("revision", current.revision);
+      rememberPending(current);
       try {
+        const table = getSupabase().from("codeproof_study");
+        const payload = { revision: writeAttempt.revision, state: writeAttempt.state };
+        const write = current.revision === null
+          ? table.upsert({ ...payload, user_id: current.userId }, { onConflict: "user_id", ignoreDuplicates: true })
+          : table.update(payload).eq("user_id", current.userId).eq("revision", current.revision);
         const { data, error } = await write.select("revision").maybeSingle();
         if (error) throw error;
         if (current !== cloudStudy) return;
@@ -90,7 +154,7 @@ async function saveCloudStudy(current: CloudStudy) {
             current.conflict = true;
             state = {
               ...state,
-              storageIssue: "Сохранение изменилось на другом устройстве. Экспортируйте изменения этой вкладки, затем обновите страницу.",
+              storageIssue: conflictMessage,
             };
             return;
           }
@@ -101,6 +165,7 @@ async function saveCloudStudy(current: CloudStudy) {
           current.pending = false;
           state = { ...state, storageIssue: null };
         }
+        rememberPending(current);
       } catch {
         if (current === cloudStudy) state = { ...state, storageIssue: failedSave };
         return;
@@ -114,32 +179,61 @@ async function saveCloudStudy(current: CloudStudy) {
 }
 
 export function retryStudySync() {
+  retryQuizResultSync();
   if (!cloudStudy) return;
   if (!cloudStudy.ready) {
     state = { ...state, storageIssue: null };
     emit();
     void loadCloudStudy(cloudStudy);
   } else {
+    if (!cloudStudy.conflict) state = { ...state, storageIssue: null };
     void saveCloudStudy(cloudStudy);
+    emit();
   }
 }
 
 export async function flushStudy() {
+  snapshot();
   const current = cloudStudy;
-  if (!current) return;
-  await saveCloudStudy(current);
-  if (current.pending) throw new Error("Прогресс ещё не синхронизирован. Сохраните изменения или экспортируйте их перед выходом.");
+  if (current) {
+    if (!current.ready) await loadCloudStudy(current);
+    await saveCloudStudy(current);
+    if (current.pending) throw new Error("Прогресс ещё не синхронизирован. Сохраните изменения или экспортируйте их перед выходом.");
+  }
+  await flushQuizResults();
+}
+
+/** The caller confirms that the local changes have been exported first. */
+export async function reloadStudyFromCloud() {
+  const current = cloudStudy;
+  if (!current || !current.conflict) return;
+  const change = current.change;
+  const { data, error } = await getSupabase().from("codeproof_study")
+    .select("state, revision").eq("user_id", current.userId).maybeSingle();
+  if (error) throw new Error("Не удалось загрузить облачную версию. Локальные изменения сохранены.");
+  if (current !== cloudStudy) return;
+  if (current.change !== change) throw new Error("Появились новые изменения. Скачайте их перед заменой.");
+  const next = data ? parseStudy(JSON.stringify(data.state)) : { ...emptyStudy, name: getAccounts().active?.name ?? "Студент" };
+  state = next;
+  current.revision = data?.revision ?? null;
+  current.write = undefined;
+  current.pending = false;
+  current.conflict = false;
+  rememberPending(current);
+  emit();
+}
+
+export function getStudySyncStatus() {
+  snapshot();
+  if (!cloudStudy) return "local";
+  if (!cloudStudy.ready) return state.storageIssue ? "load-error" : "loading";
+  if (cloudStudy.conflict) return "conflict";
+  if (cloudStudy.pending) return state.storageIssue ? "save-error" : "saving";
+  return "synced";
 }
 
 export function useStudySyncStatus() {
-  return useSyncExternalStore(subscribe, () => {
-    snapshot();
-    if (!cloudStudy) return "local";
-    if (!cloudStudy.ready) return state.storageIssue ? "load-error" : "loading";
-    if (cloudStudy.conflict) return "conflict";
-    if (cloudStudy.pending) return state.storageIssue ? "save-error" : "saving";
-    return "synced";
-  }, () => "local");
+  return useSyncExternalStore(subscribe, getStudySyncStatus, () => "local");
 }
 
 function storageKey(id?: string) {
@@ -220,6 +314,7 @@ function snapshot() {
         loadedKey = key;
         state = { ...emptyStudy, name: account.name };
         cloudStudy = { userId: account.id, revision: null, ready: false, pending: false, conflict: false, change: 0 };
+        restorePending(cloudStudy);
         // Snapshots can run during React render. Start I/O after the render.
         const current = cloudStudy;
         queueMicrotask(() => { if (current === cloudStudy) void loadCloudStudy(current); });
@@ -276,10 +371,11 @@ export function updateStudy(update: (current: StudyState) => StudyState) {
   if (current && !current.ready) return;
   const next = update(previous);
   if (next === state) return;
-  state = next;
+  state = current?.conflict ? { ...next, storageIssue: conflictMessage } : next;
   if (current) {
     current.pending = true;
     current.change += 1;
+    rememberPending(current);
     if (!current.saving && !current.conflict) {
       clearTimeout(current.timer);
       current.timer = setTimeout(() => { void saveCloudStudy(current); }, 450);

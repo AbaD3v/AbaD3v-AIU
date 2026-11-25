@@ -57,6 +57,7 @@ export default function ProfilePage() {
   const { active } = useAccounts();
   const state = useStudy();
   const syncStatus = useStudySyncStatus();
+  const unavailable = syncStatus === "loading" || syncStatus === "load-error";
   const storageFailed = syncStatus === "local" && Boolean(state.storageIssue);
   const syncFailed = storageFailed || syncStatus === "save-error"
     || syncStatus === "load-error" || syncStatus === "conflict";
@@ -252,6 +253,7 @@ export default function ProfilePage() {
             {name("profile.name")}
             <input
               value={state.name}
+              disabled={unavailable}
               maxLength={40}
               onChange={(event) =>
                 updateStudy((current) => ({
@@ -273,7 +275,7 @@ export default function ProfilePage() {
           </button>
           <button
             className="button button-secondary"
-            disabled={loading}
+            disabled={loading || unavailable}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
@@ -289,7 +291,7 @@ export default function ProfilePage() {
           />
           <button
             className="danger-link"
-            disabled={loading}
+            disabled={loading || unavailable}
             onClick={() => setModal("reset")}
           >
             <RotateCcw size={14} />
@@ -320,11 +322,12 @@ export default function ProfilePage() {
             </button>
             <button
               className="button button-primary"
+              disabled={unavailable}
               onClick={() => {
                 replaceStudy(backup);
                 setBackup(null);
                 closeModal();
-                setNotice("Предыдущий прогресс возвращён.");
+                setNotice("Предыдущий прогресс возвращён в этой вкладке.");
               }}
             >
               {name("profile.restore")}
@@ -355,11 +358,12 @@ export default function ProfilePage() {
             </button>
             <button
               className="button button-danger"
+              disabled={unavailable}
               onClick={() => {
                 setBackup(state);
                 replaceStudy({ ...emptyStudy, name: state.name });
                 setModal(null);
-                setNotice("SQL-прогресс сброшен.");
+                setNotice("SQL-прогресс сброшен в этой вкладке.");
               }}
             >
               {name("profile.reset")}
@@ -386,12 +390,13 @@ export default function ProfilePage() {
             </button>
             <button
               className="button button-primary"
+              disabled={unavailable}
               onClick={() => {
                 setBackup(state);
                 replaceStudy(imported);
                 setImported(null);
                 setModal(null);
-                setNotice("Прогресс восстановлен.");
+                setNotice("Прогресс из файла открыт в этой вкладке.");
               }}
             >
               {name("common.restore")}
