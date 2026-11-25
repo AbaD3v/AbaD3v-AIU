@@ -1,5 +1,6 @@
 "use client";
 import { useSiteNames } from "@/app/lib/site-names/store";
+import { lessonFieldKey } from "@/app/lib/site-names/practice-lesson";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -34,7 +35,12 @@ export default function Catalog() {
   const [status, setStatus] = useState("all");
   const nextTask = getContinueTask(state);
   const started = tasks.some((task) => isTaskStarted(state, task.id));
-  const filtered = tasks.filter((task) => {
+  const displayedTasks = tasks.map((task) => ({
+    ...task,
+    description: name(lessonFieldKey(task.id, "description")),
+    tags: task.tags.map((_, index) => name(lessonFieldKey(task.id, `tag.${index + 1}`))),
+  }));
+  const filtered = displayedTasks.filter((task) => {
     const progress = state.progress[task.id];
     const matches = (
       name(`task.${task.id}`) +
@@ -62,14 +68,12 @@ export default function Catalog() {
         <div>
           <span className="eyebrow">{name("catalog.eyebrow")}</span>
           <h1>{name("catalog.heading")}</h1>
-          <p>
-            Пиши запросы, исследуй данные и проверяй решения в настоящей базе.
-          </p>
+          <p>{name("catalog.intro")}</p>
         </div>
         <span className="course-label">
           <span />
           <strong>{name("catalog.courseBadge")}</strong>
-          <small>SQLite</small>
+          <small>{name("catalog.engine")}</small>
         </span>
       </div>
       <section className="course-hero" aria-label={name("catalog.continueRegion")}>
@@ -78,7 +82,7 @@ export default function Catalog() {
             <span className="hero-spark">
               <Sparkles size={14} />
             </span>
-            {stats.completed === 15
+            {stats.completed === tasks.length
               ? name("catalog.completedEyebrow")
               : started
                 ? name("catalog.continueEyebrow")
@@ -91,11 +95,7 @@ export default function Catalog() {
                 ? name(`task.${nextTask.id}`)
                 : name("catalog.startHeading")}
           </h2>
-          <p>
-            Один интернет-магазин. Пять связанных таблиц.
-            <br />
-            Пятнадцать задач, которые решает аналитик.
-          </p>
+          <p style={{ whiteSpace: "pre-line" }}>{name("catalog.heroDescription")}</p>
           <Link
             href={nextTask ? taskHref(nextTask.id) : "/profile/"}
             className="button button-lime"
@@ -109,7 +109,7 @@ export default function Catalog() {
           </Link>
           <span className="hero-footnote">
             <Check size={13} />
-            Все задания открыты. Можно идти в своём темпе.
+            {name("catalog.heroFootnote")}
           </span>
         </div>
         <div className="hero-art" aria-hidden="true">
@@ -176,7 +176,7 @@ export default function Catalog() {
             <BookOpen size={19} />
           </span>
           <span>
-            <strong>15</strong>
+            <strong>{tasks.length}</strong>
             <small>{name("catalog.taskCount")}</small>
           </span>
         </div>
@@ -209,7 +209,7 @@ export default function Catalog() {
           </span>
           <span>
             <strong>
-              {stats.completed} <em>/ 15</em>
+              {stats.completed} <em>/ {tasks.length}</em>
             </strong>
             <small>{name("catalog.progress")}</small>
           </span>
@@ -220,7 +220,7 @@ export default function Catalog() {
           <div className="section-title">
             <div>
               <h2 id="course-heading">{name("catalog.program")}</h2>
-              <p>От простых выборок до ответов на бизнес-вопросы.</p>
+              <p>{name("catalog.programDescription")}</p>
             </div>
             <span className="count-label">{name("catalog.moduleCount")}</span>
           </div>
@@ -284,21 +284,18 @@ export default function Catalog() {
                 filtered.some((task) => task.module === module.id),
               )
               .map((module) => {
-                const completed = tasks.filter(
-                  (task) =>
-                    task.module === module.id &&
-                    state.progress[task.id]?.solvedAt,
-                ).length;
+                const moduleTasks = tasks.filter((task) => task.module === module.id);
+                const completed = moduleTasks.filter((task) => state.progress[task.id]?.solvedAt).length;
                 return (
                   <div className="module-card" key={module.id}>
                     <div className="module-heading">
                       <span
                         className={
                           "module-icon " +
-                          (completed === 3 ? "module-complete" : "")
+                          (completed === moduleTasks.length ? "module-complete" : "")
                         }
                       >
-                        {completed === 3 ? (
+                        {completed === moduleTasks.length ? (
                           <Check size={18} />
                         ) : (
                           String(module.id).padStart(2, "0")
@@ -306,9 +303,10 @@ export default function Catalog() {
                       </span>
                       <div>
                         <h3>{name(`module.${module.id}`)}</h3>
-                        <p>{module.subtitle}</p>
+                        <p>{name(`module.subtitle.${module.id}`)}</p>
+                        <p>{name(`module.description.${module.id}`)}</p>
                       </div>
-                      <span className="module-completion">{completed} / 3</span>
+                      <span className="module-completion">{completed} / {moduleTasks.length}</span>
                     </div>
                     <div>
                       {filtered
@@ -317,7 +315,7 @@ export default function Catalog() {
                           <TaskLink
                             key={task.id}
                             task={task}
-                            index={tasks.indexOf(task)}
+                            index={displayedTasks.indexOf(task)}
                             progress={state.progress[task.id]}
                             started={isTaskStarted(state, task.id)}
                           />
@@ -330,7 +328,7 @@ export default function Catalog() {
               <div className="empty-state">
                 <Search size={30} />
                 <h3>{name("catalog.empty")}</h3>
-                <p>Попробуйте другой запрос или сбросьте фильтры.</p>
+                <p>{name("catalog.emptyHelp")}</p>
                 <button
                   className="button button-secondary"
                   onClick={() => {
@@ -352,10 +350,7 @@ export default function Catalog() {
             </div>
             <span className="eyebrow">{name("catalog.databaseEyebrow")}</span>
             <h3>{name("catalog.databaseHeading")}</h3>
-            <p>
-              Товары, покупатели, заказы и платежи. Все задачи связаны одной
-              историей.
-            </p>
+            <p>{name("catalog.databaseDescription")}</p>
             <div className="database-file">
               <Database size={15} />
               <span>{name("common.databaseFile")}</span>
@@ -368,17 +363,14 @@ export default function Catalog() {
           <div className="tips-card">
             <BookOpen size={21} />
             <h3>{name("catalog.referenceHeading")}</h3>
-            <p>Короткие объяснения и примеры SQL-команд всегда под рукой.</p>
+            <p>{name("catalog.referenceDescription")}</p>
             <Link href="/reference/" className="text-link">
               {name("catalog.openReference")} <ArrowRight size={15} />
             </Link>
           </div>
           <div className="course-note">
             <span>{name("catalog.tip")}</span>
-            <p>
-              Сначала посмотри на данные. Хороший запрос начинается с хорошего
-              вопроса.
-            </p>
+            <p>{name("catalog.tipBody")}</p>
             <span className="note-rule" />
           </div>
         </aside>

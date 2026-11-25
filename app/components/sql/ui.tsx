@@ -95,11 +95,13 @@ export function DataTable({
   rows,
   max = 1000,
   caption,
+  emptyMessage = "Запрос выполнен. Ни одна строка не соответствует условиям.",
 }: {
   columns: string[];
   rows: Cell[][];
   max?: number;
   caption?: string;
+  emptyMessage?: string;
 }) {
   const name = useSiteNames();
   return (
@@ -147,9 +149,7 @@ export function DataTable({
         <div className="table-empty">
           <Table2 size={25} />
           <strong>{name("common.noRows")}</strong>
-          <span>
-            Запрос выполнен. Ни одна строка не соответствует условиям.
-          </span>
+          <span>{emptyMessage}</span>
         </div>
       )}
     </div>

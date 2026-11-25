@@ -1,7 +1,15 @@
 import { modules, tasks } from "../sql/course";
 import { tables } from "../sql/schema";
+import { checkFeedbackNames } from "../sql/check-feedback";
+import { catalogModuleFields, catalogTextDefaults } from "./practice-catalog";
+import { lessonContentGroups, lessonInterfaceNames } from "./practice-lesson";
 
 export const staticNames = {
+  ...checkFeedbackNames,
+  ...catalogTextDefaults,
+  ...lessonInterfaceNames,
+  "admin.practiceContent": "Материалы практикума",
+  "admin.practiceContentIntro": "Редактируйте задания, подсказки, теорию и тексты каталога.",
   "site.name": "CodeProof SQL",
   "site.subtitle": "SQL ПРАКТИКУМ",
   "site.tabTagline": "практикум по анализу данных",
@@ -411,6 +419,8 @@ export type NameKey =
   | keyof typeof staticNames
   | `module.${number}`
   | `module.short.${number}`
+  | `module.subtitle.${number}`
+  | `module.description.${number}`
   | `task.${string}`
   | `reference.card.${string}.${ReferenceCardField}`
   | `quiz.title.${string}`
@@ -466,13 +476,17 @@ export const nameGroups: NameGroup[] = [
   },
 ];
 
-export const nameDefaults = new Map<NameKey, string>([
-  ...nameGroups.flatMap(({ fields }) => fields.map(({ key, original }): [NameKey, string] => [key, original])),
-  // These multiline values have a dedicated card editor, separate from site labels.
-  ...tasks.flatMap((task) => referenceCardFields.map((field): [NameKey, string] => [
-    referenceCardKey(task.id, field), field === "tags" ? task.tags.join(" / ") : task[field],
-  ])),
-]);
+// Lesson materials and reference cards have dedicated editors and share the publication store.
+const allNameFields: NameField[] = [
+  ...nameGroups.flatMap(({ fields }) => fields),
+  ...catalogModuleFields,
+  ...lessonContentGroups.flatMap(({ fields }) => fields),
+  ...tasks.flatMap((task) => referenceCardFields.map((field) => ({
+    key: referenceCardKey(task.id, field),
+    original: field === "tags" ? task.tags.join(" / ") : task[field],
+  }))),
+];
+export const nameDefaults = new Map(allNameFields.map(({ key, original }) => [key, original]));
 
 export function resolveName(key: NameKey, values: NameValues) {
   const original = nameDefaults.get(key) ?? "";

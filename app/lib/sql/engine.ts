@@ -1,4 +1,5 @@
 import type { Database, SqlJsStatic } from "sql.js";
+import { checkFeedbackNames, formatCheckFeedback, type CheckFeedback } from "./check-feedback";
 import { schemaSql, tables, type Cell } from "./schema";
 import { getTask, tasks } from "./course";
 import {
@@ -15,7 +16,7 @@ export type QueryResult = {
   elapsed: number;
   truncated: boolean;
 };
-export type Check = { label: string; passed: boolean; message: string };
+export type Check = { label: string; passed: boolean; message: string; feedback?: CheckFeedback };
 export type GradeResult = {
   passed: boolean;
   checks: Check[];
@@ -143,37 +144,21 @@ function rowKey(row: Cell[]) {
   );
 }
 
+function comparison(passed: boolean, key: CheckFeedback["key"], counts?: CheckFeedback["counts"]) {
+  return { passed, feedback: { key, counts }, message: formatCheckFeedback(checkFeedbackNames[key], counts) };
+}
+
 export function compareResults(
   actual: QueryResult,
   expected: QueryResult,
   ordered = false,
-): { passed: boolean; message: string } {
+) {
   if (actual.truncated)
-    return {
-      passed: false,
-      message:
-        "Результат превышает 1 000 строк. Проверьте соединения таблиц и условия.",
-    };
+    return comparison(false, "practice.feedbackLimit");
   if (actual.columns.length !== expected.columns.length)
-    return {
-      passed: false,
-      message:
-        "Нужно столбцов: " +
-        expected.columns.length +
-        ". В вашем результате: " +
-        actual.columns.length +
-        ".",
-    };
+    return comparison(false, "practice.feedbackColumns", { expected: expected.columns.length, actual: actual.columns.length });
   if (actual.rows.length !== expected.rows.length)
-    return {
-      passed: false,
-      message:
-        "Ожидается строк: " +
-        expected.rows.length +
-        ". Получено: " +
-        actual.rows.length +
-        ". Проверьте фильтрацию, повторы и соединения.",
-    };
+    return comparison(false, "practice.feedbackRows", { expected: expected.rows.length, actual: actual.rows.length });
   const received = actual.rows.map(rowKey);
   const target = expected.rows.map(rowKey);
   if (!ordered) {
@@ -181,14 +166,8 @@ export function compareResults(
     target.sort();
   }
   const passed = received.every((value, i) => value === target[i]);
-  return {
-    passed,
-    message: passed
-      ? "Результат совпадает."
-      : ordered
-        ? "Значения или порядок строк отличаются. Проверьте ORDER BY и дополнительные ключи сортировки."
-        : "Количество строк верное, но значения отличаются. Проверьте вычисления и порядок столбцов.",
-  };
+  if (passed) return comparison(true, "practice.feedbackMatch");
+  return comparison(false, ordered ? "practice.feedbackOrder" : "practice.feedbackValues");
 }
 
 export function gradeQuery(
@@ -208,14 +187,10 @@ export function gradeQuery(
       const actual = executeQuery(db, sql);
       const expected = executeQuery(db, trainingSql(task.solution, config));
       if (variant === 0) result = actual;
-      const comparison = compareResults(actual, expected, task.ordered);
+      const outcome = compareResults(actual, expected, task.ordered);
       checks.push({
         label: labels[variant],
-        passed: comparison.passed,
-        message:
-          variant === 0 || comparison.passed
-            ? comparison.message
-            : "Запрос не прошёл на изменённых данных. Проверьте границы условий, повторяющиеся имена, статусы и связи по id.",
+        ...(variant === 0 || outcome.passed ? outcome : comparison(false, "practice.feedbackOtherData")),
       });
     } finally {
       db.close();

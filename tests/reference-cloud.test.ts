@@ -24,13 +24,26 @@ test("cloud reference batches reload public content, preserve cache on failure a
   let failWrite = false;
   let failRead = false;
   const remote = new Map<string, string | null>();
+  // Older keys still occupy rows in the public query, before the reference cards.
+  for (let index = 0; index < 500; index++) remote.set(`legacy.${index}`, "Старое название");
   let writes = 0;
   let lastBatch: { key: string; value: string | null }[] = [];
   const userId = "12345678-1234-1234-1234-123456789abc";
   client.auth.getSession = (async () => ({ data: { session: signedIn ? { user: { id: userId, email: "admin@example.com" } } : null }, error: null })) as typeof client.auth.getSession;
   client.from = ((table: string) => {
     if (table === "codeproof_site_names") return {
-      select: async () => ({ data: [...remote].map(([key, value]) => ({ key, value })), error: failRead ? new Error("offline") : null }),
+      select: () => ({
+        order: (column: string) => {
+          assert.equal(column, "key");
+          return {
+            range: async (from: number, to: number) => {
+              if (failRead && from > 0) return { data: null, error: new Error("offline") };
+              const rows = [...remote].sort(([a], [b]) => a.localeCompare(b)).slice(from, to + 1);
+              return { data: rows.map(([key, value]) => ({ key, value })), error: null };
+            },
+          };
+        },
+      }),
       upsert: async (rows: typeof lastBatch) => {
         writes++;
         lastBatch = rows;
@@ -76,7 +89,7 @@ test("cloud reference batches reload public content, preserve cache on failure a
     remote.set(title, "Из другого браузера");
     remote.set("reference.card.unknown.title", "Неизвестная карточка");
     await refreshCloudNames();
-    assert.equal(useNameValues()[title], "Из другого браузера");
+    assert.equal(useNameValues()[title], "Из другого браузера", "loads the reference card from the second page");
     assert.equal(useNameValues()["reference.card.unknown.title"], undefined);
     await saveSiteNames(Object.fromEntries(referenceCardFields.map((field) => [referenceCardKey("first-query", field), null])));
     assert.ok(lastBatch.every((row) => row.value === null));

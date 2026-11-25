@@ -437,7 +437,7 @@ export const visitTask = (id: string) =>
   updateStudy((current) =>
     visitTaskState(current, id, new Date().toISOString()),
   );
-export const restartTask = (id: string) =>
+export const restartTask = (id: string, starter?: string) =>
   updateStudy((current) =>
-    restartTaskState(current, id, new Date().toISOString()),
+    restartTaskState(current, id, new Date().toISOString(), starter),
   );

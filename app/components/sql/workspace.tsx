@@ -1,6 +1,7 @@
 "use client";
 import { difficultyNames, checkNames } from "@/app/lib/site-names/registry";
 import { useSiteNames } from "@/app/lib/site-names/store";
+import { lessonFieldKey } from "@/app/lib/site-names/practice-lesson";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -49,16 +50,23 @@ import { emptyProgress, getNextTask } from "@/app/lib/sql/progress";
 import { DataTable, DatabaseBadge, Modal, downloadText } from "./ui";
 import RestoreQuery from "./restore-query";
 import { useQuizQuestions } from "@/app/lib/sql/quiz";
+import { formatCheckFeedback } from "@/app/lib/sql/check-feedback";
 import quizEntryStyles from "./workspace-quiz-entry.module.css";
+import contentStyles from "./workspace-content.module.css";
+
+function EditorLoading() {
+  const name = useSiteNames();
+  return (
+    <div className="editor-loading">
+      <LoaderCircle size={20} className="spin" />
+      {name("practice.loadingEditor")}
+    </div>
+  );
+}
 
 const Editor = dynamic(() => import("./editor"), {
   ssr: false,
-  loading: () => (
-    <div className="editor-loading">
-      <LoaderCircle size={20} className="spin" />
-      Загрузка редактора…
-    </div>
-  ),
+  loading: EditorLoading,
 });
 
 export default function Workspace({ taskId }: { taskId: string }) {
@@ -66,7 +74,20 @@ export default function Workspace({ taskId }: { taskId: string }) {
   const quizQuestions = useQuizQuestions(taskId);
   const { config, status: databaseStatus } = useTrainingDatabase();
   const originalTask = getTask(taskId)!;
-  const task = useMemo(() => trainingTask(originalTask, config), [originalTask, config]);
+  const task = useMemo(() => {
+    const field = (key: Parameters<typeof lessonFieldKey>[1]) => name(lessonFieldKey(taskId, key));
+    return trainingTask({
+      ...originalTask,
+      description: field("description"),
+      requirement: field("requirement"),
+      hints: originalTask.hints.map((_, index) => field(`hint.${index + 1}`)),
+      theory: field("theory"),
+      example: field("example"),
+      starter: field("starter"),
+      solution: field("solution"),
+      explanation: field("explanation"),
+    }, config);
+  }, [originalTask, config, name, taskId]);
   const tables = useMemo(() => trainingTables(config), [config]);
   const sqlSchema = useMemo(() => Object.fromEntries(
     tables.map(table => [table.name, table.fields.map(field => field.name)]),
@@ -74,9 +95,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
   const index = tasks.findIndex((item) => item.id === taskId);
   const state = useStudy();
   const progress = state.progress[taskId] ?? emptyProgress;
+  const { starter, solution } = task;
   const storedDraft = state.drafts[taskId];
   const code = storedDraft === undefined || storedDraft === originalTask.starter
-    ? task.starter : storedDraft;
+    ? starter : storedDraft;
   const [leftTab, setLeftTab] = useState<"task" | "hints" | "theory">("task");
   const [bottomTab, setBottomTab] = useState<"result" | "check" | "history">(
     "result",
@@ -172,7 +194,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
       )
         return;
       const message =
-        error instanceof Error ? error.message : "Не удалось выполнить запрос.";
+        error instanceof Error ? error.message : name("practice.runError");
       setError(message);
       setResult(null);
       setGrade(null);
@@ -205,7 +227,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
     setBusy(null);
     clearFeedback();
     setNotice(
-      "Запрос остановлен. Можно изменить его и запустить снова. Попытка не засчитана.",
+      name("practice.stopNotice"),
     );
   }
   function clearFeedback() {
@@ -218,9 +240,9 @@ export default function Workspace({ taskId }: { taskId: string }) {
   function downloadQuery() {
     try {
       downloadText(taskId + ".sql", code);
-      setNotice("Скачивание SQL-запроса запрошено.");
+      setNotice(name("practice.downloadNotice"));
     } catch {
-      setNotice("Не удалось скачать запрос. Скопируйте текст из редактора.");
+      setNotice(name("practice.downloadError"));
     }
   }
   const stale = !!feedbackCode && feedbackCode !== code;
@@ -228,11 +250,11 @@ export default function Workspace({ taskId }: { taskId: string }) {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      setNotice("Запрос скопирован.");
+      setNotice(name("practice.copyNotice"));
       setTimeout(() => setCopied(false), 1800);
     } catch {
       setNotice(
-        "Не удалось скопировать запрос. Выделите текст в редакторе и скопируйте вручную.",
+        name("practice.copyError"),
       );
     }
   };
@@ -249,9 +271,9 @@ export default function Workspace({ taskId }: { taskId: string }) {
             .join("\r\n"),
         "text/csv;charset=utf-8",
       );
-      setNotice("Скачивание результата CSV запрошено.");
+      setNotice(name("practice.csvNotice"));
     } catch {
-      setNotice("Не удалось скачать CSV. Попробуйте ещё раз.");
+      setNotice(name("practice.csvError"));
     }
   }
   return (
@@ -293,7 +315,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             {name("practice.restart")}
           </button>
           <span>
-            {index + 1} <small>/ 15</small>
+            {index + 1} <small>/ {tasks.length}</small>
           </span>
           {index > 0 ? (
             <Link
@@ -353,7 +375,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 onClick={() => setLeftTab(tab.id)}
               >
                 {tab.label}
-                {tab.id === "hints" && <span>{progress.hints}/3</span>}
+                {tab.id === "hints" && <span>{progress.hints}/{task.hints.length}</span>}
               </button>
             ))}
           </div>
@@ -361,13 +383,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
             {leftTab === "task" && (
               <>
                 <span className="eyebrow">{name("practice.context")}</span>
-                <p className="task-description">{task.description}</p>
+                <p className={`task-description ${contentStyles.prose}`}>{task.description}</p>
                 <div className="task-requirement">
                   <span>
                     <Zap size={15} />
                     {name("practice.requirement")}
                   </span>
-                  <p>{task.requirement}</p>
+                  <p className={contentStyles.prose}>{task.requirement}</p>
                 </div>
                 <h3 className="small-heading">{name("practice.columns")}</h3>
                 <div className="column-chips">
@@ -376,14 +398,12 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   ))}
                 </div>
                 <p className="helper-text">
-                  Столбцы в указанном порядке. Псевдонимы могут отличаться.
-                  {task.ordered
-                    ? " Порядок строк учитывается."
-                    : " Порядок строк не важен."}
+                  {name("practice.columnOrder")}
+                  {" "}{name(task.ordered ? "practice.ordered" : "practice.unordered")}
                 </p>
                 <div className="task-tags">
-                  {task.tags.map((tag) => (
-                    <span key={tag}>{tag}</span>
+                  {task.tags.map((tag, i) => (
+                    <span key={tag}>{name(lessonFieldKey(taskId, `tag.${i + 1}`))}</span>
                   ))}
                 </div>
                 <button
@@ -406,16 +426,15 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   <h3>{name("practice.hintsHeading")}</h3>
                 </div>
                 <p className="muted small">
-                  Открывайте подсказки постепенно. Решение с помощью тоже
-                  засчитывается.
+                  {name("practice.hintAdvice")}
                 </p>
                 {task.hints.slice(0, progress.hints).map((hint, i) => (
                   <div className="hint-card" key={i}>
                     <span>{name("practice.hint")} {i + 1}</span>
-                    <p>{hint}</p>
+                    <p className={contentStyles.prose}>{hint}</p>
                   </div>
                 ))}
-                {progress.hints < 3 && (
+                {progress.hints < task.hints.length && (
                   <button
                     className="button button-secondary full-width"
                     onClick={() => revealHint(taskId)}
@@ -441,7 +460,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   <BookOpen size={19} />
                   <h3>{name("practice.theoryHeading")}</h3>
                 </div>
-                <p className="theory-text">{task.theory}</p>
+                <p className={`theory-text ${contentStyles.prose}`}>{task.theory}</p>
                 <h3 className="small-heading">{name("practice.exampleHeading")}</h3>
                 <pre className="code-snippet">{task.example}</pre>
                 <Link className="text-link" href="/reference/">
@@ -500,7 +519,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <div className="editor-toolbar">
               <span className="editor-file">
                 <FileCode2 size={15} />
-                solution.sql
+                {name("practice.editorFile")}
                 <span />
               </span>
               <div>
@@ -539,7 +558,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
               onChange={(value) => {
                 if (value.length > 20000)
                   setNotice(
-                    "Запрос ограничен 20 000 символами. Сохранены первые 20 000 — сократите запрос перед запуском.",
+                    name("practice.queryLimit"),
                   );
                 saveDraft(taskId, value);
               }}
@@ -609,7 +628,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
           {!ready && !loadError && (
             <div className="engine-loading" role="status">
               <LoaderCircle size={15} className="spin" />
-              Подготавливаем учебную базу…
+              {name("practice.preparingDatabase")}
             </div>
           )}
           {quizQuestions.length > 0 && (
@@ -673,7 +692,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             </div>
             {stale && (result || grade || error) && bottomTab !== "history" && (
               <div className="stale-notice">
-                Запрос изменён. Запустите его снова, чтобы обновить результат.
+                {name("practice.staleResult")}
               </div>
             )}
             <div aria-live="polite" className="results-body">
@@ -682,8 +701,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   <LoaderCircle size={30} className="spin" />
                   <strong>
                     {busy === "check"
-                      ? "Проверяем на трёх наборах данных…"
-                      : "Выполняем запрос…"}
+                      ? name("practice.checking")
+                      : name("practice.running")}
                   </strong>
                 </div>
               )}
@@ -710,18 +729,18 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 bottomTab === "result" &&
                 (result ? (
                   <>
-                    <DataTable columns={result.columns} rows={result.rows} />
+                    <DataTable columns={result.columns} rows={result.rows} emptyMessage={name("practice.noMatches")} />
                     <div className="result-footer">
                       <span>
                         <Check size={13} />
                         {name("common.querySuccess")}
                         {result.truncated
-                          ? " · показаны первые 1 000 строк"
+                          ? ` · ${name("practice.truncatedResult")}`
                           : ""}
                       </span>
                       <span>
-                        {result.rows.length} строк <i />
-                        {result.elapsed} мс
+                        {result.rows.length} {name("practice.rowsUnit")} <i />
+                        {result.elapsed} {name("practice.elapsedUnit")}
                       </span>
                     </div>
                   </>
@@ -732,12 +751,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     </span>
                     <h3>{name("practice.emptyResult")}</h3>
                     <p>
-                      Напиши SQL и нажми «{name("practice.run")}».
-                      <br />
-                      Результат появится здесь в виде таблицы.
+                      {name("practice.emptyResultTip").replace("{button}", () => name("practice.run"))}
                     </p>
                     <span className="placeholder-code">
-                      SELECT <em>возможности</em> FROM <em>практика</em>;
+                      {name("practice.emptyResultExample")}
                     </span>
                   </div>
                 ))}
@@ -766,11 +783,11 @@ export default function Workspace({ taskId }: { taskId: string }) {
                         </h3>
                         <p>
                           {grade.passed
-                            ? "Запрос прошёл все три набора данных. " +
+                            ? name("practice.checkSummary") + " " +
                               (state.storageIssue
-                                ? "Прогресс доступен в этой вкладке — экспортируйте его перед выходом."
-                                : "Прогресс сохранён.")
-                            : "Посмотрите, какая проверка не прошла, и уточните запрос."}
+                                ? name("practice.progressLocal")
+                                : name("practice.progressSaved"))
+                            : name("practice.checkAdvice")}
                         </p>
                       </div>
                     </div>
@@ -790,7 +807,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                           </span>
                           <div>
                             <strong>{checkNames[i] ? name(checkNames[i]) : check.label}</strong>
-                            <p>{check.message}</p>
+                            <p>{check.feedback ? formatCheckFeedback(name(check.feedback.key), check.feedback.counts) : check.message}</p>
                           </div>
                           <span>{i + 1}/3</span>
                         </div>
@@ -800,8 +817,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
                       <div className="grade-next">
                         <p>
                           {progress.independent
-                            ? "Самостоятельное решение — без подсказок."
-                            : "Решение с помощью — можно вернуться и потренироваться ещё."}
+                            ? name("practice.independentResult")
+                            : name("practice.assistedResult")}
                         </p>
                         {nextTask ? (
                           <Link
@@ -830,12 +847,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     </span>
                     <h3>{name("practice.emptyCheck")}</h3>
                     <p>
-                      «{name("practice.check")}» сравнит результат
-                      <br />
-                      на учебной базе и двух дополнительных наборах.
+                      {name("practice.checkIntro").replace("{button}", () => name("practice.check"))}
                     </p>
                     <small>
-                      Проверяются значения и число строк, а не текст запроса.
+                      {name("practice.checkCriteria")}
                     </small>
                   </div>
                 ))}
@@ -878,8 +893,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                     <History size={28} />
                     <h3>{name("practice.emptyHistory")}</h3>
                     <p>
-                      После первого запуска сохраним запрос
-                      <br />и результат его выполнения.
+                      {name("practice.emptyHistoryTip")}
                     </p>
                   </div>
                 ))}
@@ -888,18 +902,16 @@ export default function Workspace({ taskId }: { taskId: string }) {
           <div className="workspace-footnote">
             <span>
               <span className="status-dot" />
-              {ready ? "База готова к работе" : "Подключаем базу"}
+              {ready ? name("practice.databaseReady") : name("practice.databaseConnecting")}
             </span>
-            <span>Только чтение · исходные данные остаются целыми</span>
+            <span>{name("practice.readOnly")}</span>
           </div>
         </section>
       </div>
       {modal === "restart" && (
         <Modal title={name("practice.restartTitle")} onClose={() => setModal(null)}>
           <p>
-            Начнём новую попытку: сбросим результат этой задачи, подсказки и
-            черновик. История запросов, заметки и остальные задания останутся.
-            Текущий запрос можно скачать перед сбросом.
+            {name("practice.restartWarning")}
           </p>
           <div className="modal-actions">
             <button
@@ -914,11 +926,11 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <button
               className="button button-primary"
               onClick={() => {
-                restartTask(taskId);
+                restartTask(taskId, starter);
                 clearFeedback();
                 setLeftTab("task");
                 setNotice(
-                  "Задача начата заново. История предыдущих попыток сохранена.",
+                  name("practice.restartNotice"),
                 );
                 setModal(null);
               }}
@@ -934,8 +946,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
           onClose={() => setModal(null)}
         >
           <p>
-            Твой текущий запрос будет заменён готовым решением. Сначала его
-            можно скачать.
+            {name("practice.replaceWarning")}
           </p>
           <div className="modal-actions">
             <button
@@ -950,7 +961,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <button
               className="button button-primary"
               onClick={() => {
-                saveDraft(taskId, task.solution);
+                saveDraft(taskId, solution);
                 setModal(null);
               }}
             >
@@ -965,8 +976,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
           onClose={() => setModal(null)}
         >
           <p>
-            Текущий черновик будет заменён шаблоном задания. Предыдущие запуски
-            останутся в истории.
+            {name("practice.resetWarning")}
           </p>
           <div className="modal-actions">
             <button className="button button-secondary" onClick={downloadQuery}>
@@ -981,7 +991,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <button
               className="button button-primary"
               onClick={() => {
-                saveDraft(taskId, task.starter);
+                saveDraft(taskId, starter);
                 setModal(null);
               }}
             >
@@ -1001,8 +1011,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
         >
           {progress.solutionViewed ? (
             <>
-              <pre className="code-snippet solution-code">{task.solution}</pre>
-              <p>{task.explanation}</p>
+              <pre className="code-snippet solution-code">{solution}</pre>
+              <p className={contentStyles.prose}>{task.explanation}</p>
               <div className="modal-actions">
                 <button
                   className="button button-secondary"
@@ -1015,13 +1025,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   onClick={() => {
                     if (
                       code.trim() &&
-                      code !== task.starter &&
-                      code !== task.solution
+                      code !== starter &&
+                      code !== solution
                     ) {
                       setModal("replace-solution");
                       return;
                     }
-                    saveDraft(taskId, task.solution);
+                    saveDraft(taskId, solution);
                     setModal(null);
                   }}
                 >
@@ -1033,9 +1043,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
           ) : (
             <>
               <p>
-                После просмотра новая успешная попытка будет отмечена как
-                решение с помощью. Уже полученная отметка о самостоятельном
-                решении сохранится.
+                {name("practice.solutionWarning")}
               </p>
               <div className="modal-actions">
                 <button
