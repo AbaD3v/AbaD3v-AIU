@@ -47,25 +47,42 @@ const initial = new Map<string, QuizQuestion[]>(tasks.map((task, index) => {
 const cache = new Map<string, { raw: string | null; questions: QuizQuestion[] }>();
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
-let cloudQuestions = new Map<string, QuizQuestion[]>();
+let cloudQuestions: Map<string, QuizQuestion[]> | undefined;
+type QuizLoadStatus = "loading" | "ready" | "error";
+let cloudStatus: QuizLoadStatus = "loading";
+let invalidQuizzes = new Set<string>();
 let cloudRequest = 0;
 
-async function loadCloudQuestions() {
+export async function refreshCloudQuestions() {
+  if (!cloudEnabled) return;
   const request = ++cloudRequest;
-  const { data, error } = await getSupabase().from("codeproof_quizzes").select("task_id, questions");
-  if (error || request !== cloudRequest) return;
-  const next = new Map<string, QuizQuestion[]>();
-  for (const row of data) {
-    if (!getTask(row.task_id)) continue;
-    try { next.set(row.task_id, validateQuizQuestions(row.questions)); }
-    catch { next.set(row.task_id, empty); }
+  if (!cloudQuestions) {
+    cloudStatus = "loading";
+    emit();
   }
-  cloudQuestions = next;
+  try {
+    const { data, error } = await getSupabase().from("codeproof_quizzes").select("task_id, questions");
+    if (request !== cloudRequest) return;
+    if (error) throw error;
+    const next = new Map<string, QuizQuestion[]>();
+    const invalid = new Set<string>();
+    for (const row of data) {
+      if (!getTask(row.task_id)) continue;
+      try {
+        next.set(row.task_id, validateQuizQuestions(row.questions));
+      } catch {
+        invalid.add(row.task_id);
+        next.set(row.task_id, empty);
+      }
+    }
+    invalidQuizzes = invalid;
+    cloudQuestions = next;
+    cloudStatus = "ready";
+  } catch {
+    if (request !== cloudRequest) return;
+    cloudStatus = "error";
+  }
   emit();
-}
-
-function refreshCloudQuestions() {
-  void loadCloudQuestions().catch(() => {});
 }
 
 /** Validates the complete replacement; an empty array deliberately disables a quiz. */
@@ -95,7 +112,10 @@ export function validateQuizQuestions(value: unknown): QuizQuestion[] {
 export function getQuizQuestions(taskId: string): QuizQuestion[] {
   if (!getTask(taskId)) return empty;
   if (typeof window === "undefined") return empty;
-  if (cloudEnabled) return cloudQuestions.get(taskId) ?? initial.get(taskId) ?? empty;
+  if (cloudEnabled) {
+    if (!cloudQuestions) return empty;
+    return cloudQuestions.get(taskId) ?? initial.get(taskId) ?? empty;
+  }
   let raw: string | null;
   try { raw = window.localStorage.getItem(prefix + taskId); }
   catch { return cache.get(taskId)?.questions ?? empty; }
@@ -138,6 +158,15 @@ export function useQuizQuestions(taskId: string): QuizQuestion[] {
   return useSyncExternalStore(subscribeQuizQuestions, () => getQuizQuestions(taskId), () => empty);
 }
 
+function quizLoadStatus(taskId: string): QuizLoadStatus {
+  if (!cloudEnabled) return "ready";
+  return invalidQuizzes.has(taskId) ? "error" : cloudStatus;
+}
+
+export function useQuizLoadStatus(taskId: string) {
+  return useSyncExternalStore(subscribeQuizQuestions, () => quizLoadStatus(taskId), () => cloudEnabled ? "loading" : "ready");
+}
+
 /** Throws on invalid input, insufficient permissions, or failed persistence. */
 export function saveQuizQuestions(taskId: string, questions: QuizQuestion[]) {
   if (typeof window === "undefined") throw new Error("Сохранение доступно только в браузере.");
@@ -153,9 +182,13 @@ export function saveQuizQuestions(taskId: string, questions: QuizQuestion[]) {
 
 async function saveCloudQuestions(taskId: string, questions: QuizQuestion[]) {
   if (questions.length > 100) throw new Error("В одном тесте может быть до 100 вопросов.");
-  const { error } = await getSupabase().from("codeproof_quizzes").upsert({ task_id: taskId, questions });
-  if (error) throw new Error("Не удалось сохранить вопросы в Supabase.");
+  if (!cloudQuestions || quizLoadStatus(taskId) !== "ready") {
+    throw new Error("Перед публикацией загрузите вопросы задания.");
+  }
+  const { data, error } = await getSupabase().from("codeproof_quizzes")
+    .upsert({ task_id: taskId, questions }).select("questions").single();
+  if (error || !data) throw new Error("Не удалось опубликовать вопросы. Проверьте подключение и повторите сохранение.");
   cloudRequest += 1;
-  cloudQuestions.set(taskId, questions);
+  cloudQuestions.set(taskId, validateQuizQuestions(data.questions));
   emit();
 }

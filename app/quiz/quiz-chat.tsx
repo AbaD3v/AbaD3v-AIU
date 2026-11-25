@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getTask, taskHref } from "../lib/sql/course";
-import { useQuizQuestions, type QuizQuestion } from "../lib/sql/quiz";
+import { refreshCloudQuestions, useQuizLoadStatus, useQuizQuestions, type QuizQuestion } from "../lib/sql/quiz";
 import { useAccounts } from "../lib/accounts/store";
 import { getStudyScope, useStudy, useStudySyncStatus } from "../lib/sql/store";
 import { completeQuiz, isCloudQuiz, readCloudQuizResult, readPendingQuizResult, readQuizResult, retryQuizResultSync, saveCloudQuizResult, useQuizSyncStatus } from "./results";
@@ -25,6 +25,7 @@ function QuizForUser({ taskId }: { taskId: string }) {
   const study = useStudy();
   const studySync = useStudySyncStatus();
   const questions = useQuizQuestions(taskId);
+  const questionLoad = useQuizLoadStatus(taskId);
   const taskName = task ? name(`task.${task.id}`) : "";
   const quizTitle = task ? name(`quiz.title.${task.id}`) : name("quiz.heading");
   return (
@@ -34,9 +35,17 @@ function QuizForUser({ taskId }: { taskId: string }) {
       </Link>
       <h1>{quizTitle}</h1>
       {taskName && taskName !== quizTitle && <p>{taskName}</p>}
+      {task && questionLoad === "error" && <div role="status">
+        <p>Не удалось загрузить вопросы теста.{questions.length > 0 && " Можно продолжить текущую попытку."}</p>
+        <button type="button" className="button button-secondary" onClick={() => void refreshCloudQuestions()}>
+          Повторить загрузку вопросов
+        </button>
+      </div>}
       {!task ? <p role="status">Задание не найдено. Выберите задание из списка.</p>
         : studySync === "loading" || studySync === "load-error" ? <p role="status">Дождитесь загрузки прогресса, чтобы открыть тест.</p>
-        : !questions.length ? <p role="status">Тест недоступен: он отключён администратором или вопросы не удалось загрузить.</p>
+        : !questions.length && questionLoad === "loading" ? <p role="status">Загружаем вопросы теста…</p>
+        : !questions.length && questionLoad === "error" ? null
+        : !questions.length ? <p role="status">Тест недоступен: он отключён администратором.</p>
         : !study.progress[taskId]?.solvedAt ? <p role="status">Сначала решите задание и получите успешную проверку SQL. После этого откроется тест на понимание. <Link href={taskHref(taskId)}>{name("quiz.toTask")}</Link></p>
         : <Attempt key={taskId + JSON.stringify(questions)} taskId={taskId} questions={questions} />}
     </div>

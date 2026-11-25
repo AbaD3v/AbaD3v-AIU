@@ -18,21 +18,29 @@ let snapshot = { raw: null as string | null, values: initial };
 const listeners = new Set<() => void>();
 let cloudNames: NameValues = {};
 let cloudRequest = 0;
+type LoadStatus = "loading" | "ready" | "error";
+let loadStatus: LoadStatus = cloudEnabled ? "loading" : "ready";
 
-async function loadCloudNames() {
+export async function refreshCloudNames() {
+  if (!cloudEnabled) return;
   const request = ++cloudRequest;
-  const { data, error } = await getSupabase().from("codeproof_site_names").select("key, value");
-  if (error || request !== cloudRequest) return;
-  const next: NameValues = {};
-  for (const { key, value } of data) {
-    if (nameDefaults.has(key as NameKey) && typeof value === "string") next[key as NameKey] = value;
-  }
-  cloudNames = next;
+  loadStatus = "loading";
   notify();
-}
-
-function refreshCloudNames() {
-  void loadCloudNames().catch(() => {});
+  try {
+    const { data, error } = await getSupabase().from("codeproof_site_names").select("key, value");
+    if (request !== cloudRequest) return;
+    if (error) throw error;
+    const next: NameValues = {};
+    for (const { key, value } of data) {
+      if (nameDefaults.has(key as NameKey) && typeof value === "string") next[key as NameKey] = value;
+    }
+    cloudNames = next;
+    loadStatus = "ready";
+  } catch {
+    if (request !== cloudRequest) return;
+    loadStatus = "error";
+  }
+  notify();
 }
 
 function readNames() {
@@ -94,6 +102,10 @@ export function useNameValues() {
   return useSyncExternalStore(subscribe, readNames, () => initial);
 }
 
+export function useNamesLoadStatus() {
+  return useSyncExternalStore(subscribe, () => loadStatus, () => cloudEnabled ? "loading" : "ready");
+}
+
 export function useSiteNames() {
   const values = useNameValues();
   return useCallback((key: NameKey) => resolveName(key, values), [values]);
@@ -121,6 +133,7 @@ export async function saveSiteNames(changes: NameChanges) {
     if (error) throw new Error("Не удалось сохранить названия в Supabase.");
     cloudRequest += 1;
     cloudNames = mergeNameChanges(cloudNames, normalized);
+    loadStatus = "ready";
     notify();
     return;
   }

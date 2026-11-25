@@ -4,7 +4,9 @@ import { useSiteNames } from "@/app/lib/site-names/store";
 import { useEffect, useState } from "react";
 import { tasks } from "@/app/lib/sql/course";
 import {
+  refreshCloudQuestions,
   saveQuizQuestions,
+  useQuizLoadStatus,
   useQuizQuestions,
   type QuizQuestion,
 } from "@/app/lib/sql/quiz";
@@ -85,6 +87,7 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
   const name = useSiteNames();
   const [taskId, setTaskId] = useState(tasks[0]?.id ?? "");
   const savedQuestions = useQuizQuestions(taskId);
+  const loadStatus = useQuizLoadStatus(taskId);
   const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState(() => readDrafts(adminId));
   const [saveResults, setSaveResults] = useState<Partial<Record<string, SaveResult>>>({});
@@ -118,7 +121,7 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
   }
 
   async function save() {
-    if (saving) return;
+    if (saving || loadStatus !== "ready") return;
     const normalized = questions.map((question) => ({
       ...question,
       prompt: question.prompt.trim(),
@@ -177,6 +180,16 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
         </select>
       </label>
       <p className="account-help">Черновики остаются в этой вкладке при переходах по сайту. Сохраняйте каждое задание отдельно.</p>
+      {loadStatus === "loading" && <p role="status">Загружаем опубликованные вопросы…</p>}
+      {loadStatus === "error" && (
+        <div className="account-error" role="alert">
+          <p>Не удалось загрузить опубликованные вопросы.</p>
+          <button type="button" className="button button-secondary" onClick={() => void refreshCloudQuestions()}>
+            Повторить загрузку
+          </button>
+        </div>
+      )}
+      {(loadStatus === "ready" || draft !== undefined) && <>
       <div className={styles.actions}>
         <button
           type="button"
@@ -251,10 +264,11 @@ export default function QuizEditor({ adminId }: { adminId: string }) {
         )}
         <div className={styles.actions}>
           <button type="button" className="button button-secondary" onClick={() => edit([...questions, { id: crypto.randomUUID(), prompt: "", options: ["", ""], correctIndex: -1, explanation: "" }])}>{name("admin.addQuestion")}</button>
-          <button type="submit" className="button button-primary">{name("admin.saveQuiz")}</button>
+          <button type="submit" className="button button-primary" disabled={loadStatus !== "ready"}>{name("admin.saveQuiz")}</button>
         </div>
         </fieldset>
       </form>
+      </>}
     </section>
   );
 }

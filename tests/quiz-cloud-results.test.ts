@@ -20,7 +20,7 @@ test("cloud quiz results retry durably, serialize completions and isolate accoun
   const { getStudyScope } = await import("../app/lib/sql/store");
   const { completeQuiz, flushQuizResults, getQuizSyncStatus, readCloudQuizResult,
     readPendingQuizResult, retryQuizResultSync, saveCloudQuizResult, subscribeQuizResults, quizResultKey } = await import("../app/quiz/results");
-  const { getQuizQuestions } = await import("../app/lib/sql/quiz");
+  const { getQuizQuestions, refreshCloudQuestions } = await import("../app/lib/sql/quiz");
   const client = getSupabase();
   type Row = { user_id: string; task_id: string; score: number; question_count: number; completed_at: string };
   const remote = new Map<string, Row>();
@@ -34,6 +34,9 @@ test("cloud quiz results retry durably, serialize completions and isolate accoun
   let unsubscribe: (() => void) | undefined;
   client.auth.getSession = (async () => ({ data: { session: userId ? { user: { id: userId, email: "student@example.com" } } : null }, error: null })) as typeof client.auth.getSession;
   client.from = ((table: string) => {
+    if (table === "codeproof_quizzes") {
+      return { select: async () => ({ data: [], error: null }) };
+    }
     const filters = new Map<string, unknown>();
     let payload: Partial<Row> | undefined;
     let insert = false;
@@ -71,9 +74,11 @@ test("cloud quiz results retry durably, serialize completions and isolate accoun
 
   try {
     await refreshAccounts();
+    await refreshCloudQuestions();
     const scope = getStudyScope();
     const taskId = "first-query";
     const questions = getQuizQuestions(taskId);
+    assert.ok(questions.length, "load published questions before completing an attempt");
     const answers = questions.map((question) => question.correctIndex);
     const first = completeQuiz(taskId, questions, answers, scope).result;
     assert.equal(await saveCloudQuizResult(taskId, first, scope), true);
