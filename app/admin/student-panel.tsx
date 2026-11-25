@@ -1,8 +1,9 @@
 import { useSiteNames } from "@/app/lib/site-names/store";
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
-import { Modal } from "@/app/components/sql/ui";
+import { Download, Search } from "lucide-react";
+import { downloadText, Modal } from "@/app/components/sql/ui";
 import StudentProgress from "./student-progress";
+import { serializeStudentCsv } from "./student-csv";
 import {
   setStudentBlocked,
   type Account,
@@ -31,6 +32,7 @@ export default function StudentPanel({
   const [target, setTarget] = useState<Account | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [exportError, setExportError] = useState("");
   const [, refreshProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState<"loading" | "ready" | "error">(
     cloudEnabled ? "loading" : "ready",
@@ -70,11 +72,31 @@ export default function StudentPanel({
   const rows = students.filter((student) =>
     (access === "all" || student.blocked === (access === "blocked")) &&
     `${student.name} ${student.login}`.toLocaleLowerCase("ru").includes(query),
-  );
+  ).map((student) => {
+    const study = progressStatus === "ready" ? readStudentStudy(student.id) : null;
+    return { student, stats: study ? getStats(study) : null };
+  });
   const selectedStudent = students.find((student) => student.id === progressId);
   const accessTarget = students.find((student) => student.id === target?.id);
   const progressPlaceholder = progressStatus === "loading" ? "Загрузка…" : "Данные недоступны";
   const retryProgress = () => setReload((version) => version + 1);
+  const canExport = progressStatus === "ready" && rows.length > 0 && rows.every(({ stats }) => stats !== null);
+
+  function exportStudents() {
+    if (!canExport) return;
+    setExportError("");
+    try {
+      const csvRows = rows.flatMap(({ student, stats }) => stats ? [{
+        name: student.name,
+        completed: stats.completed,
+        percent: stats.percent,
+        access: student.blocked ? name("admin.suspended") : name("admin.open"),
+      }] : []);
+      downloadText("codeproof-students.csv", serializeStudentCsv(csvRows), "text/csv;charset=utf-8");
+    } catch {
+      setExportError("Не удалось скачать CSV. Попробуйте ещё раз.");
+    }
+  }
 
   async function toggleAccess(student: Account) {
     if (busy) return;
@@ -126,8 +148,13 @@ export default function StudentPanel({
               <option value="open">{name("admin.accessOpen")}</option>
               <option value="blocked">{name("admin.accessSuspended")}</option>
             </select>
+            <button type="button" className="button button-secondary"
+              disabled={!canExport} onClick={exportStudents}>
+              <Download size={16} aria-hidden="true" /> Скачать CSV
+            </button>
           </div>
         </div>
+        {exportError && <p role="alert" className="account-error">{exportError}</p>}
         {notice && (
           <p role="status" className="notice-banner">
             {notice}
@@ -159,9 +186,7 @@ export default function StudentPanel({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((student) => {
-                  const study = progressStatus === "ready" ? readStudentStudy(student.id) : null;
-                  const stats = study && getStats(study);
+                {rows.map(({ student, stats }) => {
                   return (
                     <tr key={student.id}>
                       <td>
