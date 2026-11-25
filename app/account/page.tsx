@@ -39,6 +39,7 @@ import googleStyles from "./google-sign-in.module.css";
 import passwordStyles from "./password-field.module.css";
 
 type Mode = "login" | "register" | "resend" | "forgot";
+const resendCooldownSeconds = 60;
 type GuestTransfer = NonNullable<ReturnType<typeof getGuestTransfer>> & { accountId: string; href: string };
 
 function accountHome(role: Role) {
@@ -138,6 +139,8 @@ export default function AccountPage() {
   const [passwordAgain, setPasswordAgain] = useState("");
   const [resetFor, setResetFor] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState<{ email: string; until: number } | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const [guestTransfer, setGuestTransfer] = useState<GuestTransfer | null>(null);
   const [transferStarted, setTransferStarted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -157,6 +160,18 @@ export default function AccountPage() {
   const resetting = Boolean(resetFor && resetFor === activeId);
   const accessDenied = mode === "login" ? accounts.accessDenied : undefined;
   const suggestedAddress = cloudEnabled && mode === "register" ? suggestEmailAddress(login) : null;
+  const confirmationAddress = (pendingEmail ?? login).trim().toLowerCase();
+  const waitSeconds = confirmationAddress === resendCooldown?.email ? secondsLeft : 0;
+
+  useEffect(() => {
+    if (!resendCooldown) return;
+    const timer = window.setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((resendCooldown.until - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining === 0) setResendCooldown(null);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   const enterAccount = useCallback((role: Role, email: string, task?: string | null) => {
     const href = cloudEnabled ? accountDestination(role, email, task) : accountHome(role);
@@ -266,13 +281,17 @@ export default function AccountPage() {
     }
   }
 
-  async function resendPendingConfirmation(email: string) {
+  async function resendConfirmation() {
+    if (busy || waitSeconds > 0) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await resendCloudConfirmation(email);
-      setNotice("Если адрес ещё не подтверждён, проверьте почту и папку «Спам».");
+      await resendCloudConfirmation(confirmationAddress);
+      setPendingEmail(confirmationAddress);
+      setResendCooldown({ email: confirmationAddress, until: Date.now() + resendCooldownSeconds * 1000 });
+      setSecondsLeft(resendCooldownSeconds);
+      setNotice("Запрос принят. Проверьте входящие письма и папку «Спам».");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось отправить ссылку.");
     } finally {
@@ -319,6 +338,10 @@ export default function AccountPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || (accounts.error && !resetting)) return;
+    if (resending && !resetting) {
+      await resendConfirmation();
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -334,16 +357,10 @@ export default function AccountPage() {
         setNotice("Пароль обновлён.");
         return;
       }
-      if (requestingLink) {
-        if (forgotPassword) {
-          await requestCloudPasswordReset(login);
-        } else {
-          await resendCloudConfirmation(login);
-        }
+      if (forgotPassword) {
+        await requestCloudPasswordReset(login);
         switchMode("login");
-        setNotice(forgotPassword
-          ? "Если для этого адреса есть аккаунт, проверьте почту и папку «Спам»."
-          : "Если этот адрес зарегистрирован и ещё не подтверждён, проверьте почту и папку «Спам».");
+        setNotice("Если для этого адреса есть аккаунт, проверьте почту и папку «Спам».");
         return;
       }
       if (registering) {
@@ -505,7 +522,7 @@ export default function AccountPage() {
         </section>
       ) : pendingEmail ? (
         <section className="account-card account-signed-in" aria-labelledby="check-email-title">
-          <h2 id="check-email-title">Завершите регистрацию</h2>
+          <h2 id="check-email-title">Подтвердите почту</h2>
           <p>Если вы впервые регистрируетесь на <strong style={{ overflowWrap: "anywhere" }}>{pendingEmail}</strong>, откройте письмо со ссылкой подтверждения. Проверьте также папку «Спам».</p>
           <p>
             {googleAvailable
@@ -513,15 +530,19 @@ export default function AccountPage() {
               : "Если у вас уже есть аккаунт с этой почтой, перейдите ко входу."}
           </p>
           {googleButton && <div className={googleStyles.option}>{googleButton}</div>}
-          <div className="account-actions">
+          <div>
             <button
               type="button"
               className="button button-primary"
-              disabled={busy}
-              onClick={() => { void resendPendingConfirmation(pendingEmail); }}
+              disabled={busy || waitSeconds > 0}
+              onClick={() => { void resendConfirmation(); }}
             >
-              {busy ? name("account.wait") : "Отправить ещё раз"}
+              {waitSeconds > 0 ? `Отправить ещё раз через ${waitSeconds} с` : "Отправить ещё раз"}
             </button>
+            {error && <p className="account-error" role="alert">{error}</p>}
+            {notice && <p className="notice-banner" role="status">{notice}</p>}
+          </div>
+          <div className="account-actions">
             <button type="button" className="button button-secondary" disabled={busy} onClick={() => switchMode("register")}>
               Исправить адрес
             </button>
@@ -529,8 +550,6 @@ export default function AccountPage() {
               К форме входа
             </button>
           </div>
-          {error && <p className="account-error" role="alert">{error}</p>}
-          {notice && <p className="notice-banner" role="status">{notice}</p>}
         </section>
       ) : (
         <section
@@ -564,7 +583,7 @@ export default function AccountPage() {
           {requestingLink && <p className="account-help">Введите адрес, который указали при регистрации.</p>}
           {resetting && <p className="account-help">Аккаунт {accounts.active?.login}</p>}
           <form className="account-form" onSubmit={submit}>
-            {googleButton && !accounts.active && (mode === "login" || mode === "register") && (
+            {googleButton && !accounts.active && (mode === "login" || registering || resending) && (
               <div className={googleStyles.option}>
                 {googleButton}
                 <span className={googleStyles.divider} aria-hidden="true">или по почте</span>
@@ -663,11 +682,12 @@ export default function AccountPage() {
             <button
               type="submit"
               className="button button-primary"
-              disabled={busy || (!!accounts.error && !resetting)}
+              disabled={busy || (!!accounts.error && !resetting) || (resending && waitSeconds > 0)}
             >
               {busy ? name("account.wait")
                 : resetting ? "Сохранить пароль"
-                  : requestingLink ? "Отправить ссылку"
+                  : resending && waitSeconds > 0 ? `Отправить через ${waitSeconds} с`
+                    : requestingLink ? "Отправить ссылку"
                     : registering ? name("account.register") : name("account.signIn")}
               <ArrowRight size={16} />
             </button>

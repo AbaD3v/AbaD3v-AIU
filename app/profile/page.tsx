@@ -15,7 +15,13 @@ import {
   Target,
   Upload,
 } from "lucide-react";
-import { useStudy, updateStudy, replaceStudy, useStudySyncStatus } from "@/app/lib/sql/store";
+import {
+  replaceStudy,
+  retryStudySync,
+  updateStudy,
+  useStudy,
+  useStudySyncStatus,
+} from "@/app/lib/sql/store";
 import { cloudEnabled } from "@/app/lib/supabase/client";
 import {
   getStats,
@@ -34,6 +40,17 @@ import {
   Status,
   downloadText,
 } from "@/app/components/sql/ui";
+import styles from "./progress-sync.module.css";
+
+const syncLabels: Record<string, string | undefined> = {
+  local: "Прогресс хранится в этом браузере",
+  loading: "Загружаем прогресс…",
+  "load-error": "Не удалось загрузить прогресс",
+  synced: "Прогресс сохранён",
+  saving: "Сохраняем…",
+  "save-error": "Не удалось сохранить",
+  conflict: "Не удалось сохранить: прогресс изменился на другом устройстве",
+};
 
 export default function ProfilePage() {
   const name = useSiteNames();
@@ -41,6 +58,9 @@ export default function ProfilePage() {
   const state = useStudy();
   const syncStatus = useStudySyncStatus();
   const unavailable = syncStatus === "loading" || syncStatus === "load-error";
+  const storageFailed = syncStatus === "local" && Boolean(state.storageIssue);
+  const syncFailed = storageFailed || syncStatus === "save-error"
+    || syncStatus === "load-error" || syncStatus === "conflict";
   const stats = getStats(state);
   const [modal, setModal] = useState<"reset" | "import" | "undo" | null>(null);
   const [notice, setNotice] = useState("");
@@ -102,6 +122,18 @@ export default function ProfilePage() {
           <ArrowRight size={16} />
         </Link>
       </PageHeading>
+      <div className={styles.sync} data-state={syncFailed ? "error" : syncStatus}>
+        <span role="status">
+          {storageFailed
+            ? "Прогресс доступен только в этой вкладке"
+            : syncLabels[syncStatus] ?? "Статус сохранения недоступен"}
+        </span>
+        {syncStatus === "save-error" && (
+          <button type="button" className="button button-secondary" onClick={retryStudySync}>
+            Повторить
+          </button>
+        )}
+      </div>
       <div className="progress-hero">
         <div
           className="large-progress-ring"
@@ -208,23 +240,9 @@ export default function ProfilePage() {
         <div>
           <h2>{name("profile.settings")}</h2>
           <p>
-            {active
-              ? cloudEnabled ? "Прогресс этого аккаунта синхронизируется через Supabase."
-                : "Прогресс этого аккаунта хранится отдельно в данном браузере."
-              : "Гостевой прогресс хранится отдельно от аккаунтов в этом браузере."}{" "}
             {cloudEnabled && active
               ? "Экспортируйте резервную копию для восстановления."
               : "Экспортируйте прогресс для переноса на другое устройство."}
-          </p>
-          <p role="status">
-            {syncStatus === "loading" ? "Загружаем сохранения аккаунта…"
-              : syncStatus === "load-error" ? "Сохранения аккаунта пока недоступны."
-                : syncStatus === "conflict" ? "Изменения этой вкладки ещё не отправлены: сохранение изменилось на другом устройстве."
-                  : syncStatus === "save-error" ? "Изменения этой вкладки ещё не синхронизированы. Повторите сохранение."
-                    : syncStatus === "saving" ? "Синхронизируем изменения…"
-                      : syncStatus === "synced" ? "Изменения сохранены в облаке."
-                        : state.storageIssue ? "Изменения доступны только в этой вкладке."
-                          : "Сохранение в этом браузере."}
           </p>
           {!active && (
             <Link href="/account/" className="text-link">
