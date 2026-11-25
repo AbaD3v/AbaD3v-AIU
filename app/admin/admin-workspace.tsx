@@ -47,7 +47,13 @@ export default function AdminWorkspace() {
       <main className={styles.gate}>
         <ShieldCheck size={28} aria-hidden="true" />
         <h1>{name("admin.heading")}</h1>
-        <p>{accounts.error || "Этот раздел доступен после входа с ролью администратора."}</p>
+        <p>{accounts.error || accounts.accessDenied || "Этот раздел доступен после входа с ролью администратора."}</p>
+        {accounts.error && (
+          <button type="button" className="button button-secondary"
+            onClick={() => { void Promise.resolve(refreshAccounts()).catch(() => {}); }}>
+            {name("admin.retryStudents")}
+          </button>
+        )}
         <Link href="/account/" className="button button-primary">
           {name("admin.toAccount")}
           <ArrowRight size={16} aria-hidden="true" />
