@@ -32,7 +32,8 @@ import {
   Zap,
 } from "lucide-react";
 import { tasks, getTask, taskHref } from "@/app/lib/sql/course";
-import { tables } from "@/app/lib/sql/schema";
+import { trainingTables, trainingTask } from "@/app/lib/sql/training-database";
+import { reloadTrainingDatabase, useTrainingDatabase } from "@/app/lib/sql/training-database-store";
 import { SqlClient } from "@/app/lib/sql/client";
 import type { QueryResult, GradeResult } from "@/app/lib/sql/engine";
 import {
@@ -71,13 +72,33 @@ const Editor = dynamic(() => import("./editor"), {
 export default function Workspace({ taskId }: { taskId: string }) {
   const name = useSiteNames();
   const quizQuestions = useQuizQuestions(taskId);
-  const task = getTask(taskId)!;
+  const { config, status: databaseStatus } = useTrainingDatabase();
+  const originalTask = getTask(taskId)!;
+  const task = useMemo(() => {
+    const field = (key: Parameters<typeof lessonFieldKey>[1]) => name(lessonFieldKey(taskId, key));
+    return trainingTask({
+      ...originalTask,
+      description: field("description"),
+      requirement: field("requirement"),
+      hints: originalTask.hints.map((_, index) => field(`hint.${index + 1}`)),
+      theory: field("theory"),
+      example: field("example"),
+      starter: field("starter"),
+      solution: field("solution"),
+      explanation: field("explanation"),
+    }, config);
+  }, [originalTask, config, name, taskId]);
+  const tables = useMemo(() => trainingTables(config), [config]);
+  const sqlSchema = useMemo(() => Object.fromEntries(
+    tables.map(table => [table.name, table.fields.map(field => field.name)]),
+  ), [tables]);
   const index = tasks.findIndex((item) => item.id === taskId);
   const state = useStudy();
   const progress = state.progress[taskId] ?? emptyProgress;
-  const starter = name(lessonFieldKey(taskId, "starter"));
-  const solution = name(lessonFieldKey(taskId, "solution"));
-  const code = state.drafts[taskId] ?? starter;
+  const { starter, solution } = task;
+  const storedDraft = state.drafts[taskId];
+  const code = storedDraft === undefined || storedDraft === originalTask.starter
+    ? starter : storedDraft;
   const [leftTab, setLeftTab] = useState<"task" | "hints" | "theory">("task");
   const [bottomTab, setBottomTab] = useState<"result" | "check" | "history">(
     "result",
@@ -133,7 +154,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
     }
   };
   const execute = async (action: "run" | "check") => {
-    if (busyRef.current || !ready || !code.trim()) return;
+    if (busyRef.current || !ready || databaseStatus !== "ready" || !code.trim()) return;
     const currentRequest = ++requestId.current;
     const scope = getStudyScope();
     busyRef.current = true;
@@ -145,8 +166,8 @@ export default function Workspace({ taskId }: { taskId: string }) {
     try {
       const response =
         action === "check"
-          ? await client.grade(taskId, code)
-          : await client.run(code);
+          ? await client.grade(taskId, code, config)
+          : await client.run(code, config);
       if (
         !alive.current ||
         currentRequest !== requestId.current ||
@@ -362,13 +383,13 @@ export default function Workspace({ taskId }: { taskId: string }) {
             {leftTab === "task" && (
               <>
                 <span className="eyebrow">{name("practice.context")}</span>
-                <p className={`task-description ${contentStyles.prose}`}>{name(lessonFieldKey(taskId, "description"))}</p>
+                <p className={`task-description ${contentStyles.prose}`}>{task.description}</p>
                 <div className="task-requirement">
                   <span>
                     <Zap size={15} />
                     {name("practice.requirement")}
                   </span>
-                  <p className={contentStyles.prose}>{name(lessonFieldKey(taskId, "requirement"))}</p>
+                  <p className={contentStyles.prose}>{task.requirement}</p>
                 </div>
                 <h3 className="small-heading">{name("practice.columns")}</h3>
                 <div className="column-chips">
@@ -407,10 +428,10 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 <p className="muted small">
                   {name("practice.hintAdvice")}
                 </p>
-                {task.hints.slice(0, progress.hints).map((_, i) => (
+                {task.hints.slice(0, progress.hints).map((hint, i) => (
                   <div className="hint-card" key={i}>
                     <span>{name("practice.hint")} {i + 1}</span>
-                    <p className={contentStyles.prose}>{name(lessonFieldKey(taskId, `hint.${i + 1}`))}</p>
+                    <p className={contentStyles.prose}>{hint}</p>
                   </div>
                 ))}
                 {progress.hints < task.hints.length && (
@@ -439,9 +460,9 @@ export default function Workspace({ taskId }: { taskId: string }) {
                   <BookOpen size={19} />
                   <h3>{name("practice.theoryHeading")}</h3>
                 </div>
-                <p className={`theory-text ${contentStyles.prose}`}>{name(lessonFieldKey(taskId, "theory"))}</p>
+                <p className={`theory-text ${contentStyles.prose}`}>{task.theory}</p>
                 <h3 className="small-heading">{name("practice.exampleHeading")}</h3>
-                <pre className="code-snippet">{name(lessonFieldKey(taskId, "example"))}</pre>
+                <pre className="code-snippet">{task.example}</pre>
                 <Link className="text-link" href="/reference/">
                   {name("practice.fullReference")}
                   <ArrowRight size={15} />
@@ -532,6 +553,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
               </div>
             </div>
             <Editor
+              schema={sqlSchema}
               value={code}
               onChange={(value) => {
                 if (value.length > 20000)
@@ -557,7 +579,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 )}
                 <button
                   className="button button-run"
-                  disabled={!!busy || !ready || !code.trim()}
+                  disabled={!!busy || !ready || databaseStatus !== "ready" || !code.trim()}
                   onClick={onRun}
                 >
                   {busy === "run" ? (
@@ -569,7 +591,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
                 </button>
                 <button
                   className="button button-lime"
-                  disabled={!!busy || !ready || !code.trim()}
+                  disabled={!!busy || !ready || databaseStatus !== "ready" || !code.trim()}
                   onClick={onCheck}
                 >
                   {busy === "check" ? (
@@ -586,6 +608,15 @@ export default function Workspace({ taskId }: { taskId: string }) {
             <p className="notice-banner" role="status">
               {notice}
             </p>
+          )}
+          {databaseStatus === "loading" && <p role="status">Загружаем учебную базу…</p>}
+          {databaseStatus === "error" && (
+            <div className="notice-banner" role="status">
+              Не удалось загрузить учебную базу.{" "}
+              <button className="button button-secondary" type="button" onClick={reloadTrainingDatabase}>
+                Повторить
+              </button>
+            </div>
           )}
           {loadError && (
             <div className="error-banner" role="alert">
@@ -981,7 +1012,7 @@ export default function Workspace({ taskId }: { taskId: string }) {
           {progress.solutionViewed ? (
             <>
               <pre className="code-snippet solution-code">{solution}</pre>
-              <p className={contentStyles.prose}>{name(lessonFieldKey(taskId, "explanation"))}</p>
+              <p className={contentStyles.prose}>{task.explanation}</p>
               <div className="modal-actions">
                 <button
                   className="button button-secondary"

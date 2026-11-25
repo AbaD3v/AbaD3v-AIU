@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BookOpen,
   ClipboardList,
+  Database,
   LayoutDashboard,
   ShieldCheck,
   Type,
@@ -17,6 +18,7 @@ import { refreshAccounts, useAccounts } from "@/app/lib/accounts/store";
 import { useSiteNames } from "@/app/lib/site-names/store";
 import QuizEditor from "@/app/components/sql/quiz-editor";
 import SiteNamesEditor from "@/app/components/sql/site-names-editor";
+import TrainingDatabaseEditor from "./training-database-editor";
 import StudentPanel from "./student-panel";
 import PracticeContentEditor from "./practice-content-editor";
 import styles from "./admin-workspace.module.css";
@@ -26,6 +28,7 @@ const sections = [
   { id: "students", title: "admin.students", description: "admin.studentsIntro", Icon: UsersRound },
   { id: "practice", title: "admin.practiceContent", description: "admin.practiceContentIntro", Icon: BookOpen },
   { id: "quizzes", title: "admin.quizzes", description: "admin.quizzesIntro", Icon: ClipboardList },
+  { id: "database", title: "admin.trainingDatabase", description: "admin.trainingDatabaseIntro", Icon: Database },
   { id: "texts", title: "admin.siteTexts", description: "admin.siteTextsIntro", Icon: Type },
 ] as const;
 
@@ -196,6 +199,9 @@ function Workspace({
         </div>
         <div hidden={section.id !== "quizzes"}>
           <QuizEditor adminId={admin.id} />
+        </div>
+        <div hidden={section.id !== "database"}>
+          <TrainingDatabaseEditor />
         </div>
         <div hidden={section.id !== "texts"}>
           <SiteNamesEditor />

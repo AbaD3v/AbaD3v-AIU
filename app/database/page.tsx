@@ -1,6 +1,6 @@
 "use client";
 import { useSiteNames } from "@/app/lib/site-names/store";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -10,16 +10,20 @@ import {
   Search,
   Table2,
 } from "lucide-react";
-import { tables, shopData } from "@/app/lib/sql/schema";
+import { trainingTables, trainingRows } from "@/app/lib/sql/training-database";
+import { reloadTrainingDatabase, useTrainingDatabase } from "@/app/lib/sql/training-database-store";
 import { tasks, taskHref } from "@/app/lib/sql/course";
 import { DataTable, PageHeading, DatabaseBadge } from "@/app/components/sql/ui";
 
 export default function DatabasePage() {
   const name = useSiteNames();
+  const { config, status } = useTrainingDatabase();
+  const tables = useMemo(() => trainingTables(config), [config]);
+  const shopData = useMemo(() => trainingRows(config), [config]);
   const [selected, setSelected] = useState("products");
   const [tab, setTab] = useState("data");
   const [query, setQuery] = useState("");
-  const table = tables.find((item) => item.name === selected)!;
+  const table = tables.find((item) => item.originalName === selected)!;
   const rows = shopData[selected].filter((row) =>
     row.some((value) =>
       String(value ?? "")
@@ -37,6 +41,13 @@ export default function DatabasePage() {
       >
         <DatabaseBadge />
       </PageHeading>
+      {status === "loading" && <p role="status">Загружаем учебную базу…</p>}
+      {status === "error" && (
+        <div className="notice-banner" role="status">
+          Не удалось загрузить опубликованную версию.{" "}
+          <button className="button button-secondary" type="button" onClick={reloadTrainingDatabase}>Повторить</button>
+        </div>
+      )}
       <div className="database-overview">
         <div>
           <Database size={23} />
@@ -81,18 +92,18 @@ export default function DatabasePage() {
             {tables.map((item) => (
               <button
                 key={item.name}
-                className={selected === item.name ? "active" : ""}
+                className={selected === item.originalName ? "active" : ""}
                 onClick={() => {
-                  setSelected(item.name);
+                  setSelected(item.originalName);
                   setQuery("");
                 }}
               >
                 <Table2 size={17} />
                 <span>
                   <strong>{item.name}</strong>
-                  <small>{name(`table.${item.name}`)}</small>
+                  <small>{name(`table.${item.originalName}`)}</small>
                 </span>
-                <span>{shopData[item.name].length}</span>
+                <span>{shopData[item.originalName].length}</span>
               </button>
             ))}
             <p>
@@ -103,7 +114,7 @@ export default function DatabasePage() {
           <section className="table-inspector">
             <div className="inspector-heading">
               <div>
-                <span className="eyebrow">{name(`table.${table.name}`)}</span>
+                <span className="eyebrow">{name(`table.${table.originalName}`)}</span>
                 <h2>{table.name}</h2>
                 <p>{table.description}</p>
               </div>
@@ -153,7 +164,7 @@ export default function DatabasePage() {
             <DataTable
               columns={table.fields.map((field) => field.name)}
               rows={rows}
-              caption={name(`table.${table.name}`)}
+              caption={name(`table.${table.originalName}`)}
             />
           </section>
         </div>
@@ -172,15 +183,15 @@ export default function DatabasePage() {
                 key={item.name}
                 className="schema-card"
                 onClick={() => {
-                  setSelected(item.name);
+                  setSelected(item.originalName);
                   setTab("data");
                   setQuery("");
                 }}
               >
                 <div>
                   <Table2 size={17} />
-                  <strong>{name(`table.${item.name}`)}</strong>
-                  <span>{shopData[item.name].length}</span>
+                  <strong>{name(`table.${item.originalName}`)}</strong>
+                  <span>{shopData[item.originalName].length}</span>
                 </div>
                 <p><code>{item.name}</code></p>
                 {item.fields.map((field) => (
