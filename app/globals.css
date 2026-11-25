@@ -2833,6 +2833,8 @@ select {
   padding-bottom: 28px;
 }
 .reference-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -2852,6 +2854,7 @@ select {
   color: #b4c99b;
 }
 .reference-tags {
+  min-width: 0;
   font-family: var(--mono);
   font-size: 8px;
   color: #9cb580;
@@ -2871,6 +2874,9 @@ select {
   min-height: 62px;
 }
 .reference-card .code-snippet {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
   font-size: 10px;
   line-height: 1.9;
 }

@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { getAccounts, refreshAccounts } from "../accounts/store";
 import { cloudEnabled, getSupabase } from "../supabase/client";
 import {
+  MAX_NAME_LENGTH,
   mergeNameChanges,
   nameDefaults,
   resolveName,
@@ -122,6 +123,9 @@ export async function saveSiteNames(changes: NameChanges) {
     if (!nameDefaults.has(key)) throw new Error("Неизвестное название.");
     if (value !== null && (typeof value !== "string" || !value.trim())) {
       throw new Error(`${resolveName("admin.nameEmpty", values)}: ${nameDefaults.get(key)}.`);
+    }
+    if (typeof value === "string" && value.trim().length > MAX_NAME_LENGTH) {
+      throw new Error(`Текст должен содержать не более ${MAX_NAME_LENGTH} символов.`);
     }
     normalized[key] = value === null ? null : value.trim();
   }

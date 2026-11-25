@@ -5,6 +5,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   ClipboardList,
   Database,
   LayoutDashboard,
@@ -19,6 +20,7 @@ import QuizEditor from "@/app/components/sql/quiz-editor";
 import SiteNamesEditor from "@/app/components/sql/site-names-editor";
 import TrainingDatabaseEditor from "./training-database-editor";
 import StudentPanel from "./student-panel";
+import ReferenceEditor from "./reference-editor";
 import styles from "./admin-workspace.module.css";
 
 const sections = [
@@ -26,6 +28,7 @@ const sections = [
   { id: "students", title: "admin.students", description: "admin.studentsIntro", Icon: UsersRound },
   { id: "quizzes", title: "admin.quizzes", description: "admin.quizzesIntro", Icon: ClipboardList },
   { id: "database", title: "admin.trainingDatabase", description: "admin.trainingDatabaseIntro", Icon: Database },
+  { id: "reference", title: "admin.reference", description: "admin.referenceIntro", Icon: BookOpen },
   { id: "texts", title: "admin.siteTexts", description: "admin.siteTextsIntro", Icon: Type },
 ] as const;
 
@@ -199,6 +202,9 @@ function Workspace({
         </div>
         <div hidden={section.id !== "texts"}>
           <SiteNamesEditor />
+        </div>
+        <div hidden={section.id !== "reference"}>
+          <ReferenceEditor />
         </div>
       </main>
     </div>
